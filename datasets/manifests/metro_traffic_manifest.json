@@ -1,0 +1,22 @@
+{
+  "name": "metro_interstate_traffic_volume",
+  "dataset_id": 492,
+  "task": "regression",
+  "citation": "Hogue, J. (2019). Metro Interstate Traffic Volume. UCI Machine Learning Repository. DOI: 10.24432/C5X60B",
+  "official_url": "https://archive.ics.uci.edu/dataset/492/urban+traffic",
+  "licence": "CC BY 4.0",
+  "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+  "total_expected_rows": 48204,
+  "features": [
+    "holiday",
+    "temp",
+    "rain_1h",
+    "snow_1h",
+    "clouds_all",
+    "weather_main",
+    "weather_description",
+    "date_time"
+  ],
+  "target": "traffic_volume",
+  "target_type": "integer"
+}
