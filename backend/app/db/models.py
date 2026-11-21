@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -62,6 +63,7 @@ class DatasetVersion(Base):
     validation_runs = relationship("ValidationRun", back_populates="dataset_version", cascade="all, delete-orphan")
     training_jobs = relationship("TrainingJob", back_populates="dataset_version", cascade="all, delete-orphan")
     training_runs = relationship("TrainingRun", back_populates="dataset_version", cascade="all, delete-orphan")
+    model_candidates = relationship("ModelCandidate", back_populates="dataset_version", cascade="all, delete-orphan")
 
 
 class DataContract(Base):
@@ -188,3 +190,119 @@ class TrainingRun(Base):
 
     training_job = relationship("TrainingJob", back_populates="training_run")
     dataset_version = relationship("DatasetVersion", back_populates="training_runs")
+    model_candidates = relationship("ModelCandidate", back_populates="training_run", cascade="all, delete-orphan")
+
+
+class ModelCandidate(Base):
+    """Registered ML candidate linked to an immutable MLflow model version."""
+
+    __tablename__ = "model_candidates"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    training_run_id = Column(
+        String(36),
+        ForeignKey("training_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    dataset_version_id = Column(
+        String(36),
+        ForeignKey("dataset_versions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    mlflow_model_name = Column(String(100), nullable=False, index=True)
+    mlflow_model_version = Column(String(50), nullable=False)
+    model_uri = Column(String(500), nullable=False)
+    artifact_uri = Column(String(500), nullable=False)
+    signature_json = Column(JSON, nullable=True)
+    input_contract_json = Column(JSON, nullable=True)
+    metrics_json = Column(JSON, nullable=True)
+    gate_evaluation_json = Column(JSON, nullable=True)
+    status = Column(String(30), default="REGISTERED", nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    training_run = relationship("TrainingRun", back_populates="model_candidates")
+    dataset_version = relationship("DatasetVersion", back_populates="model_candidates")
+    deployments = relationship(
+        "Deployment",
+        foreign_keys="[Deployment.candidate_id]",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+    )
+    prediction_events = relationship("PredictionEvent", back_populates="candidate")
+
+
+class DeploymentEnvironment(Base):
+    """Deployment target environment pointer (e.g. staging, production)."""
+
+    __tablename__ = "deployment_environments"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    name = Column(String(50), unique=True, nullable=False, index=True)  # staging, production
+    active_candidate_id = Column(String(36), ForeignKey("model_candidates.id", ondelete="SET NULL"), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    active_candidate = relationship("ModelCandidate", foreign_keys=[active_candidate_id])
+    deployments = relationship("Deployment", back_populates="environment", cascade="all, delete-orphan")
+
+
+class Deployment(Base):
+    """Audited staging and production deployment record."""
+
+    __tablename__ = "deployments"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    environment_id = Column(
+        String(36),
+        ForeignKey("deployment_environments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    candidate_id = Column(
+        String(36),
+        ForeignKey("model_candidates.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    previous_candidate_id = Column(
+        String(36),
+        ForeignKey("model_candidates.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    status = Column(String(30), default="STAGED", nullable=False, index=True)
+    smoke_test_results_json = Column(JSON, nullable=True)
+    approved_by = Column(String(100), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approval_rationale = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    environment = relationship("DeploymentEnvironment", back_populates="deployments")
+    candidate = relationship("ModelCandidate", foreign_keys=[candidate_id], back_populates="deployments")
+    previous_candidate = relationship("ModelCandidate", foreign_keys=[previous_candidate_id])
+
+
+class PredictionEvent(Base):
+    """Privacy-safe inference telemetry record."""
+
+    __tablename__ = "prediction_events"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    inference_id = Column(String(36), unique=True, nullable=False, index=True)
+    candidate_id = Column(
+        String(36),
+        ForeignKey("model_candidates.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    model_name = Column(String(100), nullable=False)
+    model_version = Column(String(50), nullable=False)
+    request_time = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    latency_ms = Column(Float, nullable=False)
+    status = Column(String(20), nullable=False)  # SUCCESS, ERROR
+    prediction_json = Column(JSON, nullable=True)
+    input_summary_json = Column(JSON, nullable=True)
+
+    candidate = relationship("ModelCandidate", back_populates="prediction_events")

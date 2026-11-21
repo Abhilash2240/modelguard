@@ -30,5 +30,16 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Initialize database tables."""
+    """Initialize database tables and seed default environments."""
+    from app.db import models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        for env_name in ("staging", "production"):
+            env = db.query(models.DeploymentEnvironment).filter(models.DeploymentEnvironment.name == env_name).first()
+            if not env:
+                db.add(models.DeploymentEnvironment(name=env_name))
+        db.commit()
+    finally:
+        db.close()

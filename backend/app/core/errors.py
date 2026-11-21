@@ -78,6 +78,36 @@ class ReconciliationError(ModelGuardError):
     pass
 
 
+class ModelRegistryError(ModelGuardError):
+    """Base exception for model registry and candidate operations."""
+
+    pass
+
+
+class ReleaseGateError(ModelGuardError):
+    """Raised when model candidate fails the release gate."""
+
+    pass
+
+
+class DeploymentError(ModelGuardError):
+    """Raised when staging or production deployment fails."""
+
+    pass
+
+
+class InferenceError(ModelGuardError):
+    """Raised when model inference execution fails."""
+
+    pass
+
+
+class InputContractViolationError(InferenceError):
+    """Raised when incoming inference payload violates model input contract or signature."""
+
+    pass
+
+
 def not_found_exception_handler(entity_name: str, entity_id: Any) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
