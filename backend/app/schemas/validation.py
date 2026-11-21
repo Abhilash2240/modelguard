@@ -30,9 +30,7 @@ class ValidationSummary(BaseModel):
 
 class DataContractCreate(BaseModel):
     version_tag: str = Field(..., description="Contract version tag, e.g. v1")
-    contract_schema_json: dict[str, Any] = Field(
-        ..., description="Machine-readable contract definitions"
-    )
+    contract_schema_json: dict[str, Any] = Field(..., description="Machine-readable contract definitions")
 
 
 class DataContractResponse(BaseModel):

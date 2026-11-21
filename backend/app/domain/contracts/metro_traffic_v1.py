@@ -33,12 +33,8 @@ metro_traffic_schema_v1 = pa.DataFrameSchema(
         "temp": pa.Column(
             pa.Float,
             checks=[
-                pa.Check.gt(
-                    150.0, error="Temperature must be > 150.0 Kelvin (sensor error filter)"
-                ),
-                pa.Check.lt(
-                    350.0, error="Temperature must be < 350.0 Kelvin (extreme physics bound)"
-                ),
+                pa.Check.gt(150.0, error="Temperature must be > 150.0 Kelvin (sensor error filter)"),
+                pa.Check.lt(350.0, error="Temperature must be < 350.0 Kelvin (extreme physics bound)"),
             ],
             nullable=False,
             required=True,

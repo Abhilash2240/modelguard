@@ -64,9 +64,7 @@ def test_dataset_lifecycle_api(client: TestClient, valid_csv_path: Path, invalid
     inv_version_id = resp_upload_inv.json()["id"]
 
     # 7. Validate the invalid version -> must fail and return structured findings
-    resp_val_inv = client.post(
-        f"/api/v1/dataset-versions/{inv_version_id}/validate?contract_version=v1"
-    )
+    resp_val_inv = client.post(f"/api/v1/dataset-versions/{inv_version_id}/validate?contract_version=v1")
     assert resp_val_inv.status_code == 200
     inv_val_data = resp_val_inv.json()
     assert inv_val_data["status"] == "FAILED"

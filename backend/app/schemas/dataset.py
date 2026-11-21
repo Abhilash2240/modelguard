@@ -12,9 +12,7 @@ class ColumnProfile(BaseModel):
 
 class DatasetBase(BaseModel):
     name: str = Field(..., max_length=100, description="Unique name of dataset")
-    task_type: str = Field(
-        ..., max_length=50, description="ML task type: regression or classification"
-    )
+    task_type: str = Field(..., max_length=50, description="ML task type: regression or classification")
     source_uri: str = Field(..., max_length=255, description="Official source URL or reference")
     licence: str = Field(..., max_length=100, description="Licence tag (e.g. CC BY 4.0)")
     description: str | None = Field(None, description="Detailed dataset description")
@@ -31,9 +29,7 @@ class DatasetResponse(DatasetBase):
 
 
 class DatasetVersionCreate(BaseModel):
-    version_tag: str = Field(
-        ..., pattern=r"^v[0-9]+(\.[0-9]+)*$", description="Version string, e.g. v1.0.0"
-    )
+    version_tag: str = Field(..., pattern=r"^v[0-9]+(\.[0-9]+)*$", description="Version string, e.g. v1.0.0")
 
 
 class DatasetVersionResponse(BaseModel):

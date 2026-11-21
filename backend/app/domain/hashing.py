@@ -26,7 +26,5 @@ def calculate_sha256(file_path_or_bytes: str | Path | bytes, chunk_size: int = 6
 
 def calculate_schema_hash(columns: list) -> str:
     """Calculate deterministic SHA-256 hash of a column structure."""
-    normalized = "|".join(
-        f"{col['name']}:{col['dtype']}" for col in sorted(columns, key=lambda x: x["name"])
-    )
+    normalized = "|".join(f"{col['name']}:{col['dtype']}" for col in sorted(columns, key=lambda x: x["name"]))
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()

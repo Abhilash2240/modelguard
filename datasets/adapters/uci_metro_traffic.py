@@ -11,9 +11,7 @@ from pathlib import Path
 import requests
 from app.domain.hashing import calculate_sha256
 
-UCI_DATASET_URL = (
-    "https://archive.ics.uci.edu/static/public/492/metro+interstate+traffic+volume.zip"
-)
+UCI_DATASET_URL = "https://archive.ics.uci.edu/static/public/492/metro+interstate+traffic+volume.zip"
 MANIFEST_PATH = Path(__file__).resolve().parent.parent / "manifests" / "metro_traffic_manifest.json"
 
 
@@ -52,9 +50,7 @@ def download_metro_traffic(destination_dir: Path) -> Path:
                 break
 
     if not target_csv.exists():
-        raise FileNotFoundError(
-            "Could not find Metro Interstate Traffic Volume CSV inside downloaded archive."
-        )
+        raise FileNotFoundError("Could not find Metro Interstate Traffic Volume CSV inside downloaded archive.")
 
     sha256 = calculate_sha256(target_csv)
     print(f"Successfully downloaded and extracted {target_csv} (SHA-256: {sha256})")

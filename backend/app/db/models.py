@@ -37,9 +37,7 @@ class Dataset(Base):
     description = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
-    versions = relationship(
-        "DatasetVersion", back_populates="dataset", cascade="all, delete-orphan"
-    )
+    versions = relationship("DatasetVersion", back_populates="dataset", cascade="all, delete-orphan")
     contracts = relationship("DataContract", back_populates="dataset", cascade="all, delete-orphan")
 
 
@@ -49,9 +47,7 @@ class DatasetVersion(Base):
     __tablename__ = "dataset_versions"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    dataset_id = Column(
-        String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    dataset_id = Column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
     version_tag = Column(String(50), nullable=False)  # e.g., 'v1.0.0'
     storage_uri = Column(String(500), nullable=False)
     sha256_hash = Column(String(64), nullable=False, index=True)
@@ -62,9 +58,9 @@ class DatasetVersion(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     dataset = relationship("Dataset", back_populates="versions")
-    validation_runs = relationship(
-        "ValidationRun", back_populates="dataset_version", cascade="all, delete-orphan"
-    )
+    validation_runs = relationship("ValidationRun", back_populates="dataset_version", cascade="all, delete-orphan")
+    training_jobs = relationship("TrainingJob", back_populates="dataset_version", cascade="all, delete-orphan")
+    training_runs = relationship("TrainingRun", back_populates="dataset_version", cascade="all, delete-orphan")
 
 
 class DataContract(Base):
@@ -73,9 +69,7 @@ class DataContract(Base):
     __tablename__ = "data_contracts"
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
-    dataset_id = Column(
-        String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    dataset_id = Column(String(36), ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False, index=True)
     version_tag = Column(String(50), nullable=False)  # e.g., 'v1'
     contract_schema_json = Column(JSON, nullable=False)  # schema description, checks, bounds
     is_active = Column(Boolean, default=True, nullable=False)
@@ -97,19 +91,16 @@ class ValidationRun(Base):
         nullable=False,
         index=True,
     )
-    contract_id = Column(
-        String(36), ForeignKey("data_contracts.id", ondelete="SET NULL"), nullable=True
-    )
+    contract_id = Column(String(36), ForeignKey("data_contracts.id", ondelete="SET NULL"), nullable=True)
     status = Column(String(20), nullable=False)  # PASSED, FAILED, WARNING
     error_count = Column(Integer, default=0, nullable=False)
     warning_count = Column(Integer, default=0, nullable=False)
-    details_json = Column(
-        JSON, nullable=False
-    )  # Detailed check-by-check breakdown & sample failures
+    details_json = Column(JSON, nullable=False)  # Detailed check-by-check breakdown & sample failures
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     dataset_version = relationship("DatasetVersion", back_populates="validation_runs")
     contract = relationship("DataContract", back_populates="validation_runs")
+    training_jobs = relationship("TrainingJob", back_populates="validation_run")
 
 
 class AuditEvent(Base):
@@ -126,3 +117,73 @@ class AuditEvent(Base):
     after_state_json = Column(JSON, nullable=True)
     reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class TrainingJob(Base):
+    """Durable training job state."""
+
+    __tablename__ = "training_jobs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    dataset_version_id = Column(
+        String(36),
+        ForeignKey("dataset_versions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    validation_run_id = Column(
+        String(36),
+        ForeignKey("validation_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    config_json = Column(JSON, nullable=False)
+    status = Column(String(20), default="QUEUED", nullable=False)  # QUEUED, RUNNING, SUCCEEDED, FAILED
+    queue_job_id = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    dataset_version = relationship("DatasetVersion", back_populates="training_jobs")
+    validation_run = relationship("ValidationRun", back_populates="training_jobs")
+    training_run = relationship(
+        "TrainingRun",
+        back_populates="training_job",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class TrainingRun(Base):
+    """Reproducible training execution metadata."""
+
+    __tablename__ = "training_runs"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    training_job_id = Column(
+        String(36),
+        ForeignKey("training_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    mlflow_run_id = Column(String(100), nullable=True)
+    dataset_version_id = Column(
+        String(36),
+        ForeignKey("dataset_versions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    git_sha = Column(String(40), nullable=True)
+    dependency_lock_hash = Column(String(64), nullable=True)
+    python_version = Column(String(50), nullable=False)
+    random_seed = Column(Integer, default=42, nullable=False)
+    split_manifest_uri = Column(String(500), nullable=True)
+    metrics_json = Column(JSON, nullable=True)
+    artifact_uri = Column(String(500), nullable=True)
+    status = Column(String(20), default="QUEUED", nullable=False)  # QUEUED, RUNNING, SUCCEEDED, FAILED
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    training_job = relationship("TrainingJob", back_populates="training_run")
+    dataset_version = relationship("DatasetVersion", back_populates="training_runs")

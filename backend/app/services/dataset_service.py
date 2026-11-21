@@ -136,11 +136,7 @@ class DatasetService:
         return version_record
 
     def get_dataset_version(self, version_id: str) -> models.DatasetVersion:
-        version = (
-            self.db.query(models.DatasetVersion)
-            .filter(models.DatasetVersion.id == version_id)
-            .first()
-        )
+        version = self.db.query(models.DatasetVersion).filter(models.DatasetVersion.id == version_id).first()
         if not version:
             raise EntityNotFoundError(f"Dataset version with id '{version_id}' not found.")
         return version

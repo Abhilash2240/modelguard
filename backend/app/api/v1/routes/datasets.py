@@ -121,7 +121,5 @@ def get_validation_run(
 
     run = service.db.query(ValidationRun).filter(ValidationRun.id == run_id).first()
     if not run:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Validation run '{run_id}' not found."
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Validation run '{run_id}' not found.")
     return run

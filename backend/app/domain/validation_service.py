@@ -19,9 +19,7 @@ def get_contract(dataset_name: str, version_tag: str = "v1") -> BaseDataContract
         # Fallback to metro traffic contract if it's the primary dataset
         if "metro" in dataset_name.lower():
             return MetroTrafficContractV1()
-        raise EntityNotFoundError(
-            f"No contract registered for '{dataset_name}' with version '{version_tag}'."
-        )
+        raise EntityNotFoundError(f"No contract registered for '{dataset_name}' with version '{version_tag}'.")
     return contract_cls()
 
 

@@ -56,9 +56,7 @@ def conflict_exception_handler(message: str) -> HTTPException:
     )
 
 
-def validation_exception_handler(
-    message: str, details: dict[str, Any] | None = None
-) -> HTTPException:
+def validation_exception_handler(message: str, details: dict[str, Any] | None = None) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail={"error": message, "details": details or {}},
