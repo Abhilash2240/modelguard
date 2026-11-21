@@ -42,6 +42,42 @@ class StorageError(ModelGuardError):
     pass
 
 
+class TrackingError(ModelGuardError):
+    """Base exception for experiment tracking failures."""
+
+    pass
+
+
+class TrackingInitializationError(TrackingError):
+    """Raised when MLflow experiment or run initialization fails."""
+
+    pass
+
+
+class TrackingLoggingError(TrackingError):
+    """Raised when logging parameters, metrics, or tags fails."""
+
+    pass
+
+
+class ArtifactLoggingError(TrackingError):
+    """Raised when persisting model or evaluation artifacts fails."""
+
+    pass
+
+
+class DatabasePersistenceError(ModelGuardError):
+    """Raised when persisting critical run or job state to the database fails."""
+
+    pass
+
+
+class ReconciliationError(ModelGuardError):
+    """Raised when reconciliation of orphaned runs encounters an unrecoverable failure."""
+
+    pass
+
+
 def not_found_exception_handler(entity_name: str, entity_id: Any) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,

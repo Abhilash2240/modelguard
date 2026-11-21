@@ -96,3 +96,20 @@ class TrainingRunResponse(BaseModel):
     completed_at: datetime | None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class MLflowRunInfo(BaseModel):
+    run_id: str
+    experiment_id: str
+    status: str
+    artifact_uri: str
+    lifecycle_stage: str | None = None
+    start_time: int | None = None
+    end_time: int | None = None
+
+
+class ReconcileReport(BaseModel):
+    reconciled_runs: list[str] = Field(default_factory=list)
+    orphaned_runs_failed: list[str] = Field(default_factory=list)
+    ambiguous_runs: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)

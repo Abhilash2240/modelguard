@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+
 from app.domain.contracts.metro_traffic_v1 import MetroTrafficContractV1
 
 
@@ -74,4 +75,3 @@ def test_contract_permits_nullable_temp_and_rain(valid_csv_path: Path):
 
     assert summary.status == "PASSED"
     assert summary.error_count == 0
-

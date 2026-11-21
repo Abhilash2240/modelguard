@@ -1,8 +1,9 @@
 import pytest
-from app.db import models
-from app.schemas.training import TrainingJobConfig, TrainingJobCreate, TrainingJobResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.db import models
+from app.schemas.training import TrainingJobConfig, TrainingJobCreate, TrainingJobResponse
 
 
 def test_training_job_and_run_orm_relationship(db: Session):

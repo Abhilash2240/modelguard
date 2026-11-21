@@ -2,11 +2,12 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from sqlalchemy.orm import Session
+
 from app.core.errors import ContractValidationError, EntityNotFoundError, IntegrityError
 from app.db import models
 from app.domain.hashing import calculate_sha256
 from app.ml.data_loader import load_validated_dataset
-from sqlalchemy.orm import Session
 
 
 def test_load_validated_dataset_success(db: Session, valid_csv_path: Path):

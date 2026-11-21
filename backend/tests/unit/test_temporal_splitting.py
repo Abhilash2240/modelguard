@@ -2,9 +2,10 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from pydantic import ValidationError
+
 from app.ml.splitting import ChronologicalSplitter, SplitError
 from app.schemas.training import SplitConfig
-from pydantic import ValidationError
 
 
 def test_split_config_validation():

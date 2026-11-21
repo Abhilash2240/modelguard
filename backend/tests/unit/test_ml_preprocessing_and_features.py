@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+
 from app.ml.features import (
     CATEGORICAL_FEATURES,
     NUMERICAL_FEATURES,

@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     DATASETS_DIR: Path = STORAGE_DIR / "datasets"
     MAX_UPLOAD_SIZE_BYTES: int = 100 * 1024 * 1024  # 100MB
 
+    # MLflow Tracking & Artifact Storage (Absolute & Cross-Platform Normalized)
+    MLFLOW_ENABLED: bool = True
+    MLFLOW_EXPERIMENT_NAME: str = "metro-interstate-traffic-volume"
+    MLFLOW_DIR: Path = STORAGE_DIR / "mlflow"
+    MLFLOW_DB_PATH: Path = STORAGE_DIR / "mlflow" / "mlflow.db"
+    MLFLOW_ARTIFACTS_DIR: Path = STORAGE_DIR / "mlflow" / "artifacts"
+    MLFLOW_TRACKING_URI: str = f"sqlite:///{(STORAGE_DIR / 'mlflow' / 'mlflow.db').resolve().as_posix()}"
+    MLFLOW_ARTIFACT_ROOT: str = (STORAGE_DIR / "mlflow" / "artifacts").resolve().as_uri()
+
     # Security
     ALLOWED_ORIGINS: list[str] = ["*"]
 

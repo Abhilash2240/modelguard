@@ -2,6 +2,8 @@ import shutil
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.errors import EntityNotFoundError, IntegrityError, InvalidOperationError, StorageError
 from app.core.logging import logger
@@ -9,7 +11,6 @@ from app.db import models
 from app.domain.hashing import calculate_schema_hash, calculate_sha256
 from app.domain.validation_service import validate_dataset_file
 from app.schemas.dataset import DatasetCreate
-from sqlalchemy.orm import Session
 
 
 class DatasetService:

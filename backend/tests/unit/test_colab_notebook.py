@@ -6,6 +6,7 @@ from pathlib import Path
 
 import nbformat as nbf
 import pytest
+
 from app.domain.contracts.metro_traffic_v1 import MetroTrafficContractV1
 from app.domain.hashing import calculate_sha256
 from app.domain.validation_service import validate_dataset_file
