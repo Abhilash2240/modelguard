@@ -1,0 +1,217 @@
+{
+  "selected_model_artifact": "candidate_random_forest.joblib",
+  "baseline_model_artifact": "baseline_dummy.joblib",
+  "training_configuration": {
+    "split_config": {
+      "train_ratio": 0.7,
+      "val_ratio": 0.15,
+      "test_ratio": 0.15,
+      "timestamp_column": "date_time",
+      "target_column": "traffic_volume",
+      "seed": 42,
+      "min_observations": 100
+    },
+    "candidate_hyperparameters": {
+      "n_estimators": 50,
+      "max_depth": 12,
+      "min_samples_split": 4,
+      "min_samples_leaf": 2,
+      "n_jobs": -1
+    }
+  },
+  "dataset_manifest": {
+    "name": "metro_interstate_traffic_volume",
+    "dataset_id": 492,
+    "dataset_version_id": "8da56ac6-8614-4789-943c-5e612008e77b",
+    "version_tag": "v1.0.1",
+    "sha256": "dad82c80c03d6cd881d60e1acc8e1237a75e241727fe367b997aa62f83c32201",
+    "task": "regression",
+    "citation": "Hogue, J. (2019). Metro Interstate Traffic Volume. UCI Machine Learning Repository. DOI: 10.24432/C5X60B",
+    "official_url": "https://archive.ics.uci.edu/dataset/492/urban+traffic",
+    "licence": "CC BY 4.0",
+    "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+    "total_expected_rows": 48204,
+    "features": [
+      "holiday",
+      "temp",
+      "rain_1h",
+      "snow_1h",
+      "clouds_all",
+      "weather_main",
+      "weather_description",
+      "date_time"
+    ],
+    "target": "traffic_volume",
+    "target_type": "integer",
+    "cleaning_policy_version": "v1.0",
+    "source_raw_dataset_version_id": "5781b57e-aa75-40f9-a5d5-592ad6160ba0",
+    "source_raw_sha256": "749c90d720360a4215bb15345526073c079ba4cc95e3fa558796d083f85fce9e",
+    "cleaning_report_reference": "datasets/manifests/metro_traffic_cleaning_provenance_v1.0.1.json"
+  },
+  "dataset_version_id": "8da56ac6-8614-4789-943c-5e612008e77b",
+  "dataset_version_tag": "v1.0.1",
+  "dataset_sha256": "dad82c80c03d6cd881d60e1acc8e1237a75e241727fe367b997aa62f83c32201",
+  "split_manifest": {
+    "dataset_version_id": "8da56ac6-8614-4789-943c-5e612008e77b",
+    "dataset_sha256": "dad82c80c03d6cd881d60e1acc8e1237a75e241727fe367b997aa62f83c32201",
+    "split_config": {
+      "train_ratio": 0.7,
+      "val_ratio": 0.15,
+      "test_ratio": 0.15,
+      "timestamp_column": "date_time",
+      "target_column": "traffic_volume",
+      "seed": 42,
+      "min_observations": 100
+    },
+    "total_rows": 48204,
+    "partitions": {
+      "train": {
+        "name": "train",
+        "row_count": 33743,
+        "min_timestamp": "2012-10-02 09:00:00",
+        "max_timestamp": "2017-05-17 20:00:00",
+        "fingerprint_sha256": "dbbe240a52cd1d3cba4a71db35d0431e1e1558713319d66345d965f65e2c768e"
+      },
+      "validation": {
+        "name": "validation",
+        "row_count": 7230,
+        "min_timestamp": "2017-05-17 21:00:00",
+        "max_timestamp": "2018-01-25 18:00:00",
+        "fingerprint_sha256": "b691aa29e4a79a3b8ee76b2f8c28336ec801bf778e8db52312f392e92648fe19"
+      },
+      "test": {
+        "name": "test",
+        "row_count": 7231,
+        "min_timestamp": "2018-01-25 19:00:00",
+        "max_timestamp": "2018-09-30 23:00:00",
+        "fingerprint_sha256": "d1b4b528b12b4bbae54f493a0b97648f19e86b2cc0836dafbfa428c1aa8f9cf6"
+      }
+    },
+    "boundary_adjustments": [
+      {
+        "boundary": "train_val",
+        "adjusted": true,
+        "boundary_timestamp": "2017-05-17 20:00:00",
+        "shifted_records": 1,
+        "action": "shifted_cut_forward_by_1_to_keep_cluster_in_prior_partition"
+      },
+      {
+        "boundary": "val_test",
+        "adjusted": false,
+        "boundary_timestamp": null,
+        "shifted_records": 0,
+        "action": "no_collision_clean_boundary"
+      }
+    ],
+    "created_at": "2026-11-21 12:36:15.067571+00:00"
+  },
+  "validation_summary": {
+    "status": "WARNING",
+    "dataset_version_id": "8da56ac6-8614-4789-943c-5e612008e77b",
+    "contract_version": "v1",
+    "total_records": 48204,
+    "error_count": 0,
+    "warning_count": 1,
+    "findings": [
+      {
+        "column": "date_time",
+        "check": "unique_timestamps",
+        "severity": "WARNING",
+        "failure_count": 7629,
+        "sample_cases": [],
+        "message": "Found 7629 duplicate timestamps in dataset."
+      }
+    ],
+    "validated_at": "2026-11-21 12:36:14.638750+00:00"
+  },
+  "baseline_validation_metrics": {
+    "mae": 1721.372,
+    "rmse": 1967.9158,
+    "r2": -0.0019,
+    "sample_count": 7230
+  },
+  "candidate_validation_metrics": {
+    "mae": 282.1859,
+    "rmse": 496.7444,
+    "r2": 0.9362,
+    "sample_count": 7230
+  },
+  "model_comparison": {
+    "metric_target": "validation",
+    "baseline_metrics": {
+      "mae": 1721.372,
+      "rmse": 1967.9158,
+      "r2": -0.0019,
+      "sample_count": 7230
+    },
+    "candidate_metrics": {
+      "mae": 282.1859,
+      "rmse": 496.7444,
+      "r2": 0.9362,
+      "sample_count": 7230
+    },
+    "delta_mae": -1439.1861,
+    "delta_rmse": -1471.1714,
+    "delta_r2": 0.9381,
+    "candidate_superior": true
+  },
+  "final_test_metrics": {
+    "mae": 260.5783,
+    "rmse": 478.6406,
+    "r2": 0.9418,
+    "sample_count": 7231
+  },
+  "validation_predictions_summary": {
+    "record_count": 7230,
+    "file_name": "validation_predictions.csv"
+  },
+  "test_predictions_summary": {
+    "record_count": 7231,
+    "file_name": "test_predictions.csv"
+  },
+  "feature_metadata": {
+    "numerical_features": [
+      "temp",
+      "rain_1h",
+      "snow_1h",
+      "clouds_all",
+      "hour",
+      "day_of_week",
+      "month",
+      "is_weekend"
+    ],
+    "categorical_features": [
+      "holiday",
+      "weather_main",
+      "weather_description"
+    ],
+    "target_column": "traffic_volume",
+    "excluded_columns": [
+      "date_time"
+    ],
+    "derived_features": [
+      "hour",
+      "day_of_week",
+      "month",
+      "is_weekend"
+    ]
+  },
+  "python_and_dependency_provenance": {
+    "python_version": "3.13.16 (main, Oct  1 2026, 15:40:24) [GCC 13.3.0]",
+    "platform": "Linux-6.6.159+-x86_64-with-glibc2.39",
+    "scikit_learn_version": "1.6.1",
+    "pandas_version": "2.2.3",
+    "numpy_version": "2.4.6",
+    "pandera_version": "0.36.0",
+    "pydantic_version": "2.14.2"
+  },
+  "execution_status": "COMPLETED",
+  "timestamp_utc": "2026-11-21T12:36:24.865062+00:00",
+  "provenance_boundaries": {
+    "registered_dataset_identity": "8da56ac6-8614-4789-943c-5e612008e77b",
+    "actual_dataset_checksum": "dad82c80c03d6cd881d60e1acc8e1237a75e241727fe367b997aa62f83c32201",
+    "colab_local_validation_status": "WARNING",
+    "persisted_database_validation_evidence": "STANDALONE_EVALUATED (DB session decoupled in Colab runtime)",
+    "integrity_verified": true
+  }
+}

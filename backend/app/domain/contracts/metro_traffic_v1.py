@@ -2,9 +2,10 @@ from typing import Any
 
 import pandas as pd
 import pandera.pandas as pa
+from pandera.errors import SchemaErrors
+
 from app.domain.contracts.base import BaseDataContract
 from app.schemas.validation import CheckFinding, ValidationSummary
-from pandera.errors import SchemaErrors
 
 # Allowable weather main categories from UCI documentation
 VALID_WEATHER_MAIN = [
@@ -36,7 +37,7 @@ metro_traffic_schema_v1 = pa.DataFrameSchema(
                 pa.Check.gt(150.0, error="Temperature must be > 150.0 Kelvin (sensor error filter)"),
                 pa.Check.lt(350.0, error="Temperature must be < 350.0 Kelvin (extreme physics bound)"),
             ],
-            nullable=False,
+            nullable=True,
             required=True,
             description="Average temperature in Kelvin",
         ),
@@ -46,7 +47,7 @@ metro_traffic_schema_v1 = pa.DataFrameSchema(
                 pa.Check.ge(0.0, error="Rainfall must be non-negative"),
                 pa.Check.lt(500.0, error="Hourly rainfall must be < 500 mm"),
             ],
-            nullable=False,
+            nullable=True,
             required=True,
             description="Amount in mm of rain that occurred in the hour",
         ),

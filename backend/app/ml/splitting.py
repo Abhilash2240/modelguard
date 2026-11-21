@@ -25,7 +25,7 @@ class ChronologicalSplitter:
     @staticmethod
     def compute_partition_fingerprint(df_partition: pd.DataFrame) -> str:
         """Deterministic SHA-256 fingerprint of a partition's exact content."""
-        csv_bytes = df_partition.to_csv(index=False).encode("utf-8")
+        csv_bytes = df_partition.to_csv(index=False, lineterminator="\n").encode("utf-8")
         return hashlib.sha256(csv_bytes).hexdigest()
 
     def _resolve_boundary_collision(

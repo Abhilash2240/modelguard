@@ -1,8 +1,9 @@
 from collections.abc import Generator
 
-from app.core.config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
+from app.core.config import settings
 
 # Engine configuration (compatible with SQLite for tests & PostgreSQL for production)
 connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}

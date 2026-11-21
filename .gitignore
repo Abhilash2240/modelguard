@@ -52,6 +52,8 @@ datasets/raw/*
 !datasets/raw/.gitkeep
 data/raw/*
 !data/raw/.gitkeep
+data/cleaned/*
+!data/cleaned/.gitkeep
 
 # Node / Frontend
 node_modules/

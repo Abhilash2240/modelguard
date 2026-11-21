@@ -61,3 +61,17 @@ def test_contract_duplicate_timestamps_warning(valid_csv_path: Path):
     # Should raise a WARNING for duplicate timestamps, not block if other checks pass
     assert summary.warning_count >= 1
     assert any(f.check == "unique_timestamps" for f in summary.findings)
+
+
+def test_contract_permits_nullable_temp_and_rain(valid_csv_path: Path):
+    df = pd.read_csv(valid_csv_path)
+    # Set temp and rain_1h in first row to None/NaN
+    df.loc[0, "temp"] = None
+    df.loc[0, "rain_1h"] = None
+
+    contract = MetroTrafficContractV1()
+    summary = contract.validate(df, dataset_version_id="test-null-sensors")
+
+    assert summary.status == "PASSED"
+    assert summary.error_count == 0
+

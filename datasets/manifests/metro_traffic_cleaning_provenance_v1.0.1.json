@@ -1,0 +1,43 @@
+{
+  "cleaning_policy_version": "v1.0",
+  "cleaning_timestamp_utc": "2026-11-21T12:00:48.290848+00:00",
+  "source_dataset_uuid": "5fe9641a-0283-45b5-bfbf-f8449fdfcf73",
+  "source_dataset_version_uuid": "5781b57e-aa75-40f9-a5d5-592ad6160ba0",
+  "source_version_tag": "v1.0.0",
+  "source_sha256": "749c90d720360a4215bb15345526073c079ba4cc95e3fa558796d083f85fce9e",
+  "original_row_count": 48204,
+  "cleaned_row_count": 48204,
+  "original_sha256": "749c90d720360a4215bb15345526073c079ba4cc95e3fa558796d083f85fce9e",
+  "cleaned_sha256": "dad82c80c03d6cd881d60e1acc8e1237a75e241727fe367b997aa62f83c32201",
+  "columns_modified": [
+    "temp",
+    "rain_1h"
+  ],
+  "modifications": [
+    {
+      "column": "temp",
+      "condition": "temp <= 150.0 (specifically temp == 0.0)",
+      "action": "convert_to_null",
+      "count": 10,
+      "reason": "MN DOT weather sensor dropout recording unphysical absolute zero (0.0 K / -273.15 C)"
+    },
+    {
+      "column": "rain_1h",
+      "condition": "rain_1h >= 500.0 (specifically rain_1h == 9831.3)",
+      "action": "convert_to_null",
+      "count": 1,
+      "reason": "MN DOT rain gauge glitch recording impossible torrential rainfall (9,831.3 mm in 1 hour)"
+    }
+  ],
+  "columns_preserved_unaltered": [
+    "holiday",
+    "snow_1h",
+    "clouds_all",
+    "weather_main",
+    "weather_description",
+    "date_time",
+    "traffic_volume"
+  ],
+  "row_preservation_policy": "All 48,204 rows preserved. No rows dropped. Duplicate timestamps preserved as warnings.",
+  "imputation_policy": "Downstream ColumnTransformer uses SimpleImputer(strategy='median') fitted exclusively on training splits."
+}

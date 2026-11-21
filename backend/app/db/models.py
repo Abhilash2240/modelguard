@@ -1,7 +1,6 @@
 import uuid
 from datetime import UTC, datetime
 
-from app.db.session import Base
 from sqlalchemy import (
     JSON,
     BigInteger,
@@ -14,6 +13,8 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship
+
+from app.db.session import Base
 
 
 def generate_uuid() -> str:
