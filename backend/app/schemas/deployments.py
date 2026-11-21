@@ -24,6 +24,14 @@ class RejectionRequest(BaseModel):
     reason: str = Field(..., min_length=1, description="Justification for rejecting model version")
 
 
+class RollbackRequest(BaseModel):
+    actor: str = Field("operator", min_length=1, description="Operator initiating the rollback")
+    reason: str = Field(..., min_length=1, description="Mandatory operational justification for rollback")
+    target_candidate_id: str | None = Field(
+        None, description="Optional target candidate ID. If omitted, rolls back to previous known-good champion."
+    )
+
+
 class DeploymentResponse(BaseModel):
     id: str
     environment_id: str

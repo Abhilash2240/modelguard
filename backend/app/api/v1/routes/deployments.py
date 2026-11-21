@@ -1,8 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import get_deployment_service
-from app.core.errors import DeploymentError, EntityNotFoundError, InvalidOperationError
-from app.schemas.deployments import ApprovalRequest, DeploymentResponse, RejectionRequest
+from app.core.errors import (
+    DeploymentError,
+    EntityNotFoundError,
+    InvalidOperationError,
+    RollbackError,
+)
+from app.schemas.deployments import (
+    ApprovalRequest,
+    DeploymentResponse,
+    RejectionRequest,
+    RollbackRequest,
+)
 from app.services.deployment_service import DeploymentService
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
@@ -78,5 +88,30 @@ def promote_deployment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except InvalidOperationError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except DeploymentError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
+
+
+@router.post("/{deployment_id}/rollback", response_model=DeploymentResponse)
+def rollback_deployment(
+    deployment_id: str,
+    payload: RollbackRequest,
+    deployment_service: DeploymentService = Depends(get_deployment_service),
+) -> DeploymentResponse:
+    """Audited rollback restoring a previously successful production model version."""
+    try:
+        deployment = deployment_service.rollback_deployment(
+            deployment_id=deployment_id,
+            actor=payload.actor,
+            reason=payload.reason,
+            target_candidate_id=payload.target_candidate_id,
+        )
+        return DeploymentResponse.model_validate(deployment)
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
+    except InvalidOperationError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
+    except RollbackError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
     except DeploymentError as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e

@@ -14,6 +14,7 @@ from app.core.errors import (
     DeploymentError,
     EntityNotFoundError,
     InvalidOperationError,
+    RollbackError,
 )
 from app.core.logging import logger
 from app.db import models
@@ -354,6 +355,163 @@ class DeploymentService:
             f"Successfully PROMOTED ModelCandidate '{candidate.id}' (v{candidate.mlflow_model_version}) to production champion."
         )
         return prod_deployment
+
+    def rollback_deployment(
+        self,
+        deployment_id: str,
+        actor: str,
+        reason: str,
+        target_candidate_id: str | None = None,
+    ) -> models.Deployment:
+        """Audited rollback restoring a previously successful production model version with safe compensation."""
+        deployment = self.db.query(models.Deployment).filter(models.Deployment.id == deployment_id).first()
+        if not deployment:
+            raise EntityNotFoundError(f"Deployment '{deployment_id}' not found.")
+
+        prod_env = self._get_or_create_environment("production")
+        current_candidate_id = prod_env.active_candidate_id
+
+        target_candidate: models.ModelCandidate | None = None
+        if target_candidate_id:
+            target_candidate = (
+                self.db.query(models.ModelCandidate).filter(models.ModelCandidate.id == target_candidate_id).first()
+            )
+            if not target_candidate:
+                raise EntityNotFoundError(f"Target ModelCandidate '{target_candidate_id}' not found.")
+        elif deployment.previous_candidate_id and deployment.previous_candidate_id != current_candidate_id:
+            target_candidate = (
+                self.db.query(models.ModelCandidate)
+                .filter(models.ModelCandidate.id == deployment.previous_candidate_id)
+                .first()
+            )
+        elif deployment.candidate_id != current_candidate_id:
+            target_candidate = deployment.candidate
+        else:
+            # Find the most recent historical promoted candidate in production different from current
+            prior_deployment = (
+                self.db.query(models.Deployment)
+                .filter(
+                    models.Deployment.environment_id == prod_env.id,
+                    models.Deployment.candidate_id != current_candidate_id,
+                )
+                .order_by(models.Deployment.created_at.desc())
+                .first()
+            )
+            if prior_deployment and prior_deployment.candidate:
+                target_candidate = prior_deployment.candidate
+
+        if not target_candidate:
+            raise InvalidOperationError("Unable to resolve a valid known-good model version for rollback.")
+
+        if current_candidate_id == target_candidate.id:
+            raise InvalidOperationError(
+                f"Target candidate '{target_candidate.id}' (v{target_candidate.mlflow_model_version}) is already active in production."
+            )
+
+        # Pre-switch verification: test artifact loading and prediction sanity
+        try:
+            mlflow.set_tracking_uri(self.tracking_uri)
+            test_model = mlflow.sklearn.load_model(target_candidate.model_uri)
+            df_sample = pd.DataFrame(SAMPLE_SMOKE_INPUT)
+            X, _ = prepare_features(df_sample, target_col="traffic_volume")
+            sample_preds = test_model.predict(X)
+            if not bool(np.all(np.isfinite(sample_preds))):
+                raise RollbackError(
+                    f"Target candidate v{target_candidate.mlflow_model_version} produced non-finite predictions during pre-rollback check."
+                )
+        except Exception as e:
+            raise RollbackError(
+                f"Pre-rollback verification failed for candidate v{target_candidate.mlflow_model_version}: {e}"
+            ) from e
+
+        current_candidate = (
+            self.db.query(models.ModelCandidate).filter(models.ModelCandidate.id == current_candidate_id).first()
+            if current_candidate_id
+            else None
+        )
+        prev_version = current_candidate.mlflow_model_version if current_candidate else None
+
+        client = self._get_client()
+        # Atomic MLflow alias switch
+        try:
+            client.set_registered_model_alias(
+                name=target_candidate.mlflow_model_name,
+                alias="champion",
+                version=target_candidate.mlflow_model_version,
+            )
+        except Exception as e:
+            raise RollbackError(
+                f"Failed to update MLflow 'champion' alias to restored version v{target_candidate.mlflow_model_version}: {e}"
+            ) from e
+
+        # Database transaction with safe compensation if persistence fails
+        now = utc_now()
+        try:
+            new_deployment = models.Deployment(
+                id=models.generate_uuid(),
+                environment_id=prod_env.id,
+                candidate_id=target_candidate.id,
+                previous_candidate_id=current_candidate_id,
+                status="PROMOTED",
+                smoke_test_results_json={"rollback": True, "verified_at": now.isoformat()},
+                approved_by=actor,
+                approved_at=now,
+                approval_rationale=f"ROLLBACK from v{prev_version} to v{target_candidate.mlflow_model_version}: {reason}",
+                created_at=now,
+                completed_at=now,
+            )
+            self.db.add(new_deployment)
+            self.db.flush()
+
+            prod_env.active_candidate_id = target_candidate.id
+            prod_env.updated_at = now
+
+            target_candidate.status = "PROMOTED"
+            target_candidate.updated_at = now
+
+            if current_candidate:
+                current_candidate.status = "ROLLED_BACK"
+                current_candidate.updated_at = now
+
+            audit = models.AuditEvent(
+                actor=actor,
+                action="ROLLBACK_MODEL_CANDIDATE",
+                resource_type="deployment",
+                resource_id=new_deployment.id,
+                before_state_json={
+                    "active_candidate_id": current_candidate_id,
+                    "active_version": prev_version,
+                },
+                after_state_json={
+                    "active_candidate_id": target_candidate.id,
+                    "active_version": target_candidate.mlflow_model_version,
+                    "rollback_deployment_id": new_deployment.id,
+                },
+                reason=reason,
+            )
+            self.db.add(audit)
+            self.db.commit()
+            self.db.refresh(new_deployment)
+        except Exception as db_exc:
+            logger.error(f"Database persistence failed during rollback. Executing MLflow compensation: {db_exc}")
+            self.db.rollback()
+            if prev_version:
+                try:
+                    client.set_registered_model_alias(
+                        name=target_candidate.mlflow_model_name,
+                        alias="champion",
+                        version=prev_version,
+                    )
+                except Exception as comp_exc:
+                    logger.critical(f"Compensating MLflow alias revert also failed: {comp_exc}")
+            raise RollbackError(
+                f"Rollback aborted and compensated due to database persistence failure: {db_exc}"
+            ) from db_exc
+
+        logger.info(
+            f"Successfully ROLLED BACK production model from v{prev_version} to v{target_candidate.mlflow_model_version}."
+        )
+        return new_deployment
 
     def list_deployments(self, environment_name: str | None = None) -> list[models.Deployment]:
         query = self.db.query(models.Deployment)

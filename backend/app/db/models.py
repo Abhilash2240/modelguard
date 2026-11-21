@@ -306,3 +306,107 @@ class PredictionEvent(Base):
     input_summary_json = Column(JSON, nullable=True)
 
     candidate = relationship("ModelCandidate", back_populates="prediction_events")
+    feedback = relationship(
+        "PredictionFeedback", uselist=False, back_populates="prediction_event", cascade="all, delete-orphan"
+    )
+
+
+class PredictionFeedback(Base):
+    """Ground-truth feedback associated with an immutable inference record."""
+
+    __tablename__ = "prediction_feedbacks"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    inference_id = Column(
+        String(36),
+        ForeignKey("prediction_events.inference_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    actual_value = Column(Float, nullable=False)
+    submitted_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    submitted_by = Column(String(100), default="system", nullable=False)
+    notes = Column(Text, nullable=True)
+
+    prediction_event = relationship("PredictionEvent", back_populates="feedback")
+
+
+class ModelQualityReport(Base):
+    """Persistent rolling model accuracy and error assessment from delayed feedback."""
+
+    __tablename__ = "model_quality_reports"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    model_name = Column(String(100), nullable=False, index=True)
+    model_version = Column(String(50), nullable=False, index=True)
+    window_start = Column(DateTime(timezone=True), nullable=True)
+    window_end = Column(DateTime(timezone=True), nullable=True)
+    sample_count = Column(Integer, nullable=False)
+    labeled_sample_count = Column(Integer, nullable=False)
+    label_coverage = Column(Float, nullable=False)
+    mae = Column(Float, nullable=True)
+    rmse = Column(Float, nullable=True)
+    r2 = Column(Float, nullable=True)
+    status = Column(String(30), nullable=False)  # SUFFICIENT_LABELS, INSUFFICIENT_LABELS
+    details_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class MonitoringReport(Base):
+    """Persistent statistical drift or health monitoring report."""
+
+    __tablename__ = "monitoring_reports"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    report_type = Column(
+        String(50), nullable=False, index=True
+    )  # DATA_DRIFT, PREDICTION_DRIFT, MODEL_QUALITY, SYSTEM_HEALTH
+    model_name = Column(String(100), nullable=False, index=True)
+    model_version = Column(String(50), nullable=False, index=True)
+    reference_window_start = Column(DateTime(timezone=True), nullable=True)
+    reference_window_end = Column(DateTime(timezone=True), nullable=True)
+    current_window_start = Column(DateTime(timezone=True), nullable=True)
+    current_window_end = Column(DateTime(timezone=True), nullable=True)
+    reference_sample_count = Column(Integer, nullable=False)
+    current_sample_count = Column(Integer, nullable=False)
+    detection_method = Column(String(50), nullable=False)  # KS_TEST, PSI, CHI_SQUARE, TOTAL_VARIATION_DISTANCE
+    policy_version = Column(String(20), default="v1.0.0", nullable=False)
+    is_drift_detected = Column(Boolean, default=False, nullable=False)
+    summary_json = Column(JSON, nullable=False)
+    metrics_json = Column(JSON, nullable=True)
+    limitations = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    alerts = relationship("MonitoringAlert", back_populates="report", cascade="all, delete-orphan")
+
+
+class MonitoringAlert(Base):
+    """Actionable threshold violation alert linking to evidence and model provenance."""
+
+    __tablename__ = "monitoring_alerts"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    report_id = Column(
+        String(36),
+        ForeignKey("monitoring_reports.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    model_name = Column(String(100), nullable=False, index=True)
+    model_version = Column(String(50), nullable=False, index=True)
+    alert_type = Column(
+        String(50), nullable=False, index=True
+    )  # DATA_DRIFT, PREDICTION_DRIFT, QUALITY_DEGRADATION, SERVING_FAILURE
+    severity = Column(String(20), nullable=False)  # INFO, WARNING, CRITICAL
+    message = Column(Text, nullable=False)
+    triggering_evidence_json = Column(JSON, nullable=False)
+    status = Column(String(20), default="OPEN", nullable=False, index=True)  # OPEN, ACKNOWLEDGED, RESOLVED
+    acknowledged_by = Column(String(100), nullable=True)
+    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
+    resolved_by = Column(String(100), nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolution_notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    report = relationship("MonitoringReport", back_populates="alerts")

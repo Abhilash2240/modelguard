@@ -108,6 +108,42 @@ class InputContractViolationError(InferenceError):
     pass
 
 
+class FeedbackError(ModelGuardError):
+    """Base exception for delayed feedback operations."""
+
+    pass
+
+
+class FeedbackConflictError(FeedbackError):
+    """Raised when conflicting ground-truth feedback is submitted for an inference."""
+
+    pass
+
+
+class InsufficientLabelsError(FeedbackError):
+    """Raised when quality evaluation cannot be calculated due to insufficient ground-truth labels."""
+
+    pass
+
+
+class RollbackError(DeploymentError):
+    """Raised when deployment rollback fails or is aborted."""
+
+    pass
+
+
+class DriftAnalysisError(ModelGuardError):
+    """Raised when input or prediction drift calculation fails."""
+
+    pass
+
+
+class MonitoringAlertError(ModelGuardError):
+    """Raised when alert operations fail."""
+
+    pass
+
+
 def not_found_exception_handler(entity_name: str, entity_id: Any) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,

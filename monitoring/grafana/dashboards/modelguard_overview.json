@@ -1,0 +1,253 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Service & Health Overview",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "req/sec", "drawStyle": "line" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum by (endpoint, status_code) (rate(modelguard_http_requests_total[1m]))",
+          "legendFormat": "{{endpoint}} ({{status_code}})",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP Request Throughput by Endpoint",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisColorMode": "text", "axisLabel": "errors/sec", "drawStyle": "line" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum by (error_type, endpoint) (rate(modelguard_errors_total[1m]))",
+          "legendFormat": "{{error_type}} at {{endpoint}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Operational Error Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 101,
+      "title": "Model Serving & Latency",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisLabel": "seconds", "drawStyle": "line" },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, model_version) (rate(modelguard_inference_latency_seconds_bucket[5m])))",
+          "legendFormat": "P50 Latency (v{{model_version}})",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, model_version) (rate(modelguard_inference_latency_seconds_bucket[5m])))",
+          "legendFormat": "P95 Latency (v{{model_version}})",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, model_version) (rate(modelguard_inference_latency_seconds_bucket[5m])))",
+          "legendFormat": "P99 Latency (v{{model_version}})",
+          "refId": "C"
+        }
+      ],
+      "title": "Inference Latency Percentiles (P50, P95, P99)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "dark-gray", "text": "INACTIVE" }, "1": { "color": "green", "text": "CHAMPION" } }, "type": "value" }
+          ]
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 10 },
+      "id": 4,
+      "options": { "orientation": "horizontal", "textMode": "auto" },
+      "targets": [
+        {
+          "expr": "modelguard_active_model_version",
+          "legendFormat": "{{environment}}: {{model_name}} v{{model_version}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Production & Staging Models",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 10 },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "sum(modelguard_model_load_failures_total)",
+          "legendFormat": "Failures",
+          "refId": "A"
+        }
+      ],
+      "title": "Model Artifact Load Failures",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "id": 102,
+      "title": "Data Drift, Prediction Drift & Quality Monitoring",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "green", "text": "STABLE" }, "1": { "color": "red", "text": "DRIFT DETECTED" } }, "type": "value" }
+          ]
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 19 },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "modelguard_drift_detected{drift_type=\"data_drift\"}",
+          "legendFormat": "Input Drift (v{{model_version}})",
+          "refId": "A"
+        },
+        {
+          "expr": "modelguard_drift_detected{drift_type=\"prediction_drift\"}",
+          "legendFormat": "Prediction Drift (v{{model_version}})",
+          "refId": "B"
+        }
+      ],
+      "title": "Drift Status Indicators",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisLabel": "Traffic Volume Error", "drawStyle": "line" }
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 19 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "modelguard_model_quality_metric{metric=\"mae\"}",
+          "legendFormat": "MAE (v{{model_version}})",
+          "refId": "A"
+        },
+        {
+          "expr": "modelguard_model_quality_metric{metric=\"rmse\"}",
+          "legendFormat": "RMSE (v{{model_version}})",
+          "refId": "B"
+        }
+      ],
+      "title": "Rolling Quality vs Delayed Feedback (MAE / RMSE)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "axisLabel": "R² Score", "drawStyle": "line" },
+          "max": 1.0,
+          "min": 0.0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.70 },
+              { "color": "green", "value": 0.85 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 19 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "modelguard_model_quality_metric{metric=\"r2\"}",
+          "legendFormat": "R² (v{{model_version}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Rolling R² Score against Delayed Ground Truth",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["modelguard", "reliability", "mlops", "wp-d"],
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"] },
+  "timezone": "browser",
+  "title": "ModelGuard — Production ML Reliability & Health",
+  "uid": "modelguard-reliability-v1",
+  "version": 1
+}

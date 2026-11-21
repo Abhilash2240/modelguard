@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.core import metrics
 from app.core.config import settings
 from app.core.errors import (
     EntityNotFoundError,
@@ -82,6 +83,7 @@ class InferenceService:
                 model = mlflow.sklearn.load_model(model_uri)
                 self._model_cache[model_uri] = model
             except Exception as e:
+                metrics.record_model_load_failure(candidate.mlflow_model_name, "production")
                 raise InferenceError(f"Failed to load model from URI '{model_uri}': {e}") from e
         return self._model_cache[model_uri]
 
@@ -165,6 +167,9 @@ class InferenceService:
             "null_counts": {k: int(v) for k, v in df_raw.isnull().sum().items()},
         }
 
+        # Track inference metrics in Prometheus
+        metrics.track_inference(candidate.mlflow_model_name, candidate.mlflow_model_version, latency_ms / 1000.0)
+
         event = models.PredictionEvent(
             inference_id=inference_id,
             candidate_id=candidate.id,
@@ -173,7 +178,7 @@ class InferenceService:
             request_time=request_time,
             latency_ms=latency_ms,
             status="SUCCESS",
-            prediction_json={"count": len(preds_list), "sample_first": preds_list[0] if preds_list else None},
+            prediction_json={"predictions": preds_list, "count": len(preds_list)},
             input_summary_json=input_summary,
         )
         self.db.add(event)
