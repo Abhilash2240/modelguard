@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 650" width="1000" height="650">
+  <defs>
+    <style>
+      .bg { fill: #0b0f19; }
+      .card { fill: #111827; stroke: #1f2937; stroke-width: 1.5; rx: 8; }
+      .header-bg { fill: #0f172a; stroke: #1e293b; stroke-width: 1; }
+      .text-title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 20px; font-weight: 700; fill: #f8fafc; }
+      .text-subtitle { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; fill: #94a3b8; }
+      .text-nav { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 500; fill: #cbd5e1; }
+      .text-bold { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 600; fill: #f1f5f9; }
+      .text-muted { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 12px; fill: #94a3b8; }
+      .text-val { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 24px; font-weight: 700; fill: #f8fafc; }
+      .badge-success { fill: #064e3b; stroke: #059669; stroke-width: 1; rx: 4; }
+      .badge-danger { fill: #7f1d1d; stroke: #dc2626; stroke-width: 1; rx: 4; }
+      .badge-blue { fill: #1e3a8a; stroke: #2563eb; stroke-width: 1; rx: 4; }
+      .badge-amber { fill: #78350f; stroke: #d97706; stroke-width: 1; rx: 4; }
+      .badge-text { font-family: monospace; font-size: 11px; font-weight: 600; fill: #f8fafc; text-anchor: middle; }
+      .code-text { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 12px; fill: #38bdf8; }
+      .btn-blue { fill: #2563eb; rx: 6; }
+      .btn-text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; font-weight: 600; fill: #ffffff; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="650" class="bg" />
+
+  <!-- Top App Bar -->
+  <rect width="1000" height="60" class="header-bg" />
+  <circle cx="28" cy="30" r="14" fill="#2563eb" />
+  <text x="28" y="35" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="14" fill="#ffffff">M</text>
+  <text x="52" y="34" class="text-title" font-size="16">ModelGuard</text>
+  <text x="148" y="34" class="text-muted" font-size="12">CONTROL PLANE</text>
+
+  <!-- Health Badge -->
+  <rect x="860" y="18" width="115" height="24" rx="12" fill="#064e3b" stroke="#059669" stroke-width="1" />
+  <circle cx="875" cy="30" r="4" fill="#10b981" />
+  <text x="920" y="34" class="badge-text" fill="#34d399">SYSTEM HEALTHY</text>
+
+  <!-- Sidebar -->
+  <rect x="0" y="60" width="200" height="590" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+  <g transform="translate(15, 80)">
+    <text x="10" y="15" class="text-nav" fill="#60a5fa">◆ Overview</text>
+    <text x="10" y="45" class="text-nav">📁 Datasets</text>
+    <text x="10" y="75" class="text-nav">⚡ Training</text>
+    <text x="10" y="105" class="text-nav">📦 Model Registry</text>
+    <text x="10" y="135" class="text-nav">🚀 Deployments</text>
+    <text x="10" y="165" class="text-nav">🔮 Inference</text>
+    <text x="10" y="195" class="text-nav">📊 Monitoring</text>
+    <text x="10" y="225" class="text-nav">🔔 Alerts &amp; Audit</text>
+  </g>
+
+  <!-- Main View Area -->
+  <g transform="translate(225, 75)">
+    <!-- Page Header -->
+    <text x="0" y="24" class="text-title">Inference Serving & Telemetry</text>
+    <text x="0" y="44" class="text-subtitle">Real-time prediction with privacy-safe input stripping</text>
+    <g transform="translate(0, 60)">
+      
+  <rect x="0" y="0" width="745" height="440" class="card" />
+  <text x="20" y="30" class="text-bold">Interactive Inference Serving &amp; Privacy Telemetry</text>
+  <line x1="20" y1="45" x2="725" y2="45" stroke="#1f2937" stroke-width="1" />
+
+  <rect x="20" y="65" width="345" height="350" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+  <text x="35" y="95" class="text-bold">Request Payload</text>
+  <text x="35" y="125" class="code-text">temp: 288.15 K (15°C)</text>
+  <text x="35" y="150" class="code-text">rain_1h: 0.0 mm</text>
+  <text x="35" y="175" class="code-text">clouds_all: 40%</text>
+  <text x="35" y="200" class="code-text">weather_main: "Clouds"</text>
+  <text x="35" y="225" class="code-text">weather_desc: "scattered clouds"</text>
+  <text x="35" y="250" class="code-text">holiday: "None"</text>
+  <text x="35" y="275" class="code-text">date_time: "2026-11-21 09:00:00"</text>
+
+  <rect x="35" y="355" width="315" height="36" class="btn-blue" />
+  <text x="192" y="377" class="btn-text">Predict Traffic Volume</text>
+
+  <rect x="380" y="65" width="345" height="350" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1" />
+  <text x="395" y="95" class="text-bold">Response &amp; Telemetry</text>
+  <text x="395" y="130" class="text-muted">Inference ID:</text>
+  <text x="395" y="150" class="code-text" font-size="11">e2e-inf-9a74-4b82-9012</text>
+
+  <text x="395" y="185" class="text-muted">Predicted Traffic Volume:</text>
+  <text x="395" y="220" class="text-val" fill="#34d399">3,142 veh/hr</text>
+
+  <text x="395" y="255" class="text-muted">Serving Latency:</text>
+  <text x="395" y="275" class="text-bold" fill="#38bdf8">3.8 ms (p50)</text>
+
+  <text x="395" y="310" class="text-muted">Privacy Safeguard:</text>
+  <text x="395" y="330" class="code-text" fill="#34d399">✓ Raw input features stripped from DB</text>
+
+    </g>
+  </g>
+</svg>
