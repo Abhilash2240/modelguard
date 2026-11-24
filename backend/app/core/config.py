@@ -1,5 +1,8 @@
+import json
 from pathlib import Path
+from typing import Any
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +28,7 @@ class Settings(BaseSettings):
     # MLflow Tracking & Artifact Storage (Absolute & Cross-Platform Normalized)
     MLFLOW_ENABLED: bool = True
     MLFLOW_EXPERIMENT_NAME: str = "metro-interstate-traffic-volume"
+    MLFLOW_MODEL_NAME: str = "metro-traffic-volume"
     MLFLOW_DIR: Path = STORAGE_DIR / "mlflow"
     MLFLOW_DB_PATH: Path = STORAGE_DIR / "mlflow" / "mlflow.db"
     MLFLOW_ARTIFACTS_DIR: Path = STORAGE_DIR / "mlflow" / "artifacts"
@@ -33,6 +37,21 @@ class Settings(BaseSettings):
 
     # Security
     ALLOWED_ORIGINS: list[str] = ["*"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            v_stripped = v.strip()
+            if v_stripped.startswith("[") and v_stripped.endswith("]"):
+                try:
+                    return json.loads(v_stripped)
+                except Exception:
+                    pass
+            return [i.strip() for i in v_stripped.split(",") if i.strip()]
+        elif isinstance(v, list):
+            return [str(i) for i in v]
+        return [str(v)]
 
     model_config = SettingsConfigDict(
         env_file=".env",
