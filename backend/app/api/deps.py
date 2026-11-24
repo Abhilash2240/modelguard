@@ -9,6 +9,7 @@ from app.services.drift_service import DriftAnalysisService
 from app.services.feedback_service import FeedbackService
 from app.services.inference_service import InferenceService
 from app.services.model_registry_service import ModelRegistryService
+from app.services.training_job_service import TrainingJobService
 
 
 def get_dataset_service(db: Session = Depends(get_db)) -> DatasetService:
@@ -37,3 +38,7 @@ def get_feedback_service(db: Session = Depends(get_db)) -> FeedbackService:
 
 def get_drift_service(db: Session = Depends(get_db)) -> DriftAnalysisService:
     return DriftAnalysisService(db=db)
+
+
+def get_training_job_service(db: Session = Depends(get_db)) -> TrainingJobService:
+    return TrainingJobService(db=db)

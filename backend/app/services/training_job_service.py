@@ -566,3 +566,43 @@ class TrainingJobService:
 
         self.db.commit()
         return report
+
+    def list_training_jobs(
+        self,
+        status: str | None = None,
+        dataset_version_id: str | None = None,
+    ) -> list[models.TrainingJob]:
+        """List training jobs ordered chronologically descending with optional filtering."""
+        query = self.db.query(models.TrainingJob).order_by(models.TrainingJob.created_at.desc())
+        if status:
+            query = query.filter(models.TrainingJob.status == status)
+        if dataset_version_id:
+            query = query.filter(models.TrainingJob.dataset_version_id == dataset_version_id)
+        return query.all()
+
+    def get_training_job(self, job_id: str) -> models.TrainingJob:
+        """Retrieve a specific training job by ID."""
+        job = self.db.query(models.TrainingJob).filter(models.TrainingJob.id == job_id).first()
+        if not job:
+            raise EntityNotFoundError(f"TrainingJob '{job_id}' not found.")
+        return job
+
+    def list_training_runs(
+        self,
+        status: str | None = None,
+        dataset_version_id: str | None = None,
+    ) -> list[models.TrainingRun]:
+        """List training runs ordered chronologically descending with optional filtering."""
+        query = self.db.query(models.TrainingRun).order_by(models.TrainingRun.created_at.desc())
+        if status:
+            query = query.filter(models.TrainingRun.status == status)
+        if dataset_version_id:
+            query = query.filter(models.TrainingRun.dataset_version_id == dataset_version_id)
+        return query.all()
+
+    def get_training_run(self, run_id: str) -> models.TrainingRun:
+        """Retrieve a specific training run by ID."""
+        run = self.db.query(models.TrainingRun).filter(models.TrainingRun.id == run_id).first()
+        if not run:
+            raise EntityNotFoundError(f"TrainingRun '{run_id}' not found.")
+        return run

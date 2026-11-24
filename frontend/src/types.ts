@@ -61,6 +61,7 @@ export interface TrainingJob {
   dataset_version_id: string
   validation_run_id?: string
   status: string
+  config_json?: Record<string, any>
   created_at: string
   updated_at: string
   training_run?: TrainingRun
@@ -73,6 +74,9 @@ export interface ModelCandidate {
   mlflow_model_name: string
   mlflow_model_version: string
   model_uri: string
+  artifact_uri?: string
+  signature_json?: Record<string, any>
+  input_contract_json?: Record<string, any>
   status: 'REGISTERED' | 'GATE_PASSED' | 'STAGED' | 'APPROVED' | 'PROMOTED' | 'REJECTED' | 'ARCHIVED' | 'FAILED'
   metrics_json?: Record<string, any>
   gate_evaluation_json?: {
@@ -82,6 +86,7 @@ export interface ModelCandidate {
     metrics?: Record<string, any>
   }
   created_at: string
+  updated_at?: string
 }
 
 export interface Deployment {

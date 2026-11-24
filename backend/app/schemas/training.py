@@ -67,18 +67,6 @@ class TrainingJobCreate(BaseModel):
     config: TrainingJobConfig = Field(default_factory=TrainingJobConfig)
 
 
-class TrainingJobResponse(BaseModel):
-    id: str
-    dataset_version_id: str
-    validation_run_id: str | None
-    config_json: dict[str, Any]
-    status: str
-    queue_job_id: str | None
-    created_at: datetime
-    updated_at: datetime
-    model_config = ConfigDict(from_attributes=True)
-
-
 class TrainingRunResponse(BaseModel):
     id: str
     training_job_id: str
@@ -95,6 +83,19 @@ class TrainingRunResponse(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrainingJobResponse(BaseModel):
+    id: str
+    dataset_version_id: str
+    validation_run_id: str | None
+    config_json: dict[str, Any]
+    status: str
+    queue_job_id: str | None
+    created_at: datetime
+    updated_at: datetime
+    training_run: TrainingRunResponse | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

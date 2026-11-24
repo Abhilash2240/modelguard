@@ -47,11 +47,7 @@ export const api = {
   },
 
   async getTrainingJobs(): Promise<TrainingJob[]> {
-    try {
-      return handleResponse<TrainingJob[]>(await fetch(`${BASE_URL}/training/jobs`))
-    } catch {
-      return []
-    }
+    return handleResponse<TrainingJob[]>(await fetch(`${BASE_URL}/training/jobs`))
   },
 
   async getModels(): Promise<ModelCandidate[]> {

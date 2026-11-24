@@ -1,174 +1,283 @@
-import React, { useEffect, useState } from 'react'
-import { Filter, ShieldAlert } from 'lucide-react'
+import React, { useEffect, useMemo, useState } from 'react'
+import {
+  CheckCircle2,
+  Search,
+  ShieldAlert,
+  UserCheck,
+} from 'lucide-react'
 import { api } from '../api'
+import { CopyButton } from '../components/CopyButton'
+import { Modal } from '../components/Modal'
+import { CardSkeleton, TableSkeleton } from '../components/Skeleton'
+import { StatusBadge } from '../components/StatusBadge'
+import { useToast } from '../components/Toast'
 import type { Alert } from '../types'
 
-export const AlertsView: React.FC = () => {
+interface AlertsViewProps {
+  refreshTrigger?: number
+}
+
+export const AlertsView: React.FC<AlertsViewProps> = ({ refreshTrigger }) => {
   const [alerts, setAlerts] = useState<Alert[]>([])
-  const [filterStatus, setFilterStatus] = useState<string>('')
-  const [loading, setLoading] = useState(true)
+  const [filterStatus, setFilterStatus] = useState<string>('ALL')
+  const [filterSeverity, setFilterSeverity] = useState<string>('ALL')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [loading, setLoading] = useState<boolean>(true)
   const [resolveModal, setResolveModal] = useState<Alert | null>(null)
-  const [resolveNotes, setResolveNotes] = useState('')
-  const [actionMsg, setActionMsg] = useState<{ text: string; error?: boolean } | null>(null)
+  const [resolveNotes, setResolveNotes] = useState<string>('')
+  const [isResolving, setIsResolving] = useState<boolean>(false)
+  const { addToast } = useToast()
+
+  const loadAlerts = async () => {
+    try {
+      setLoading(true)
+      const data = await api.getAlerts()
+      setAlerts(data)
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Error Loading Alerts',
+        message: err.message || 'Failed to fetch alerts.',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let ignore = false
-    async function load() {
-      try {
-        setLoading(true)
-        const data = await api.getAlerts(filterStatus || undefined)
-        if (!ignore) setAlerts(data)
-      } catch (err: any) {
-        if (!ignore) setActionMsg({ text: `Failed to load alerts: ${err.message}`, error: true })
-      } finally {
-        if (!ignore) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      ignore = true
-    }
-  }, [filterStatus])
+    loadAlerts()
+  }, [refreshTrigger])
 
-  async function handleAcknowledge(alertId: string) {
+  const handleAcknowledge = async (alertId: string) => {
     try {
-      setActionMsg(null)
       await api.acknowledgeAlert(alertId, 'operator')
-      setActionMsg({ text: 'Alert ACKNOWLEDGED.' })
-      const data = await api.getAlerts(filterStatus || undefined)
-      setAlerts(data)
+      addToast({
+        type: 'info',
+        title: 'Alert Acknowledged',
+        message: `Alert ${alertId.slice(0, 8)} flagged as acknowledged by operator.`,
+      })
+      await loadAlerts()
     } catch (err: any) {
-      setActionMsg({ text: `Failed to acknowledge: ${err.message}`, error: true })
+      addToast({
+        type: 'error',
+        title: 'Acknowledge Failed',
+        message: err.message || 'Failed to acknowledge alert.',
+      })
     }
   }
 
-  async function handleResolveSubmit(e: React.FormEvent) {
+  const handleResolveSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!resolveModal) return
+    setIsResolving(true)
     try {
-      setActionMsg(null)
       await api.resolveAlert(resolveModal.id, 'operator', resolveNotes || 'Remediated by operator')
-      setActionMsg({ text: 'Alert RESOLVED.' })
+      addToast({
+        type: 'success',
+        title: 'Alert Resolved',
+        message: `Alert ${resolveModal.id.slice(0, 8)} successfully resolved.`,
+      })
       setResolveModal(null)
       setResolveNotes('')
-      const data = await api.getAlerts(filterStatus || undefined)
-      setAlerts(data)
+      await loadAlerts()
     } catch (err: any) {
-      setActionMsg({ text: `Failed to resolve: ${err.message}`, error: true })
+      addToast({
+        type: 'error',
+        title: 'Resolution Failed',
+        message: err.message || 'Failed to resolve alert.',
+      })
+    } finally {
+      setIsResolving(false)
     }
   }
 
-  if (loading && alerts.length === 0) return <div className="card">Loading alerts...</div>
+  // Filtered alerts
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter((a) => {
+      const matchStatus = filterStatus === 'ALL' || a.status === filterStatus
+      const matchSeverity = filterSeverity === 'ALL' || a.severity === filterSeverity
+      const matchQuery =
+        !searchQuery ||
+        a.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.model_name.toLowerCase().includes(searchQuery.toLowerCase())
+
+      return matchStatus && matchSeverity && matchQuery
+    })
+  }, [alerts, filterStatus, filterSeverity, searchQuery])
+
+  const openCount = alerts.filter((a) => a.status === 'OPEN').length
+
+  if (loading && alerts.length === 0) {
+    return (
+      <div className="view-container">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Alert Management & Audit Log</h1>
+            <p className="page-description">Actionable threshold violations, statistical drift alarms, and human operator resolutions.</p>
+          </div>
+        </div>
+        <CardSkeleton />
+        <TableSkeleton rows={5} />
+      </div>
+    )
+  }
 
   return (
-    <div>
+    <div className="view-container">
+      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Alert Management & Audit Log</h1>
-          <p className="page-description">Actionable threshold violations, statistical drift alarms, and human operator resolutions.</p>
+          <p className="page-description">
+            Safeguard event tracking, automated threshold violations, drift alarms, and human operator audit resolution trails.
+          </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Filter size={14} color="var(--text-muted)" />
-          <select
-            className="form-select"
-            style={{ width: 'auto' }}
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="">All Statuses</option>
-            <option value="OPEN">Open</option>
-            <option value="ACKNOWLEDGED">Acknowledged</option>
-            <option value="RESOLVED">Resolved</option>
-          </select>
+        <div className="header-meta-pill">
+          <ShieldAlert size={14} className={openCount > 0 ? 'text-rose' : 'text-emerald'} />
+          <span>{openCount} Open Alerts</span>
         </div>
       </div>
 
-      {actionMsg && (
-        <div className={`card ${actionMsg.error ? 'badge-error' : 'badge-success'}`} style={{ marginBottom: '1rem', padding: '0.75rem 1rem' }}>
-          {actionMsg.text}
-        </div>
-      )}
-
+      {/* Main Alerts Card */}
       <div className="card">
         <div className="card-title">
-          <span>Active & Historical Alerts</span>
-          <ShieldAlert size={16} />
+          <div className="title-with-badge">
+            <ShieldAlert size={16} className="text-rose" />
+            <span>Operational Safeguard Alerts</span>
+            <span className="counter-pill">{filteredAlerts.length}</span>
+          </div>
+
+          {/* Search & Filters */}
+          <div className="alerts-controls-toolbar">
+            <div className="search-input-wrap">
+              <Search size={14} className="search-icon" />
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Search alerts by title or component..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="filter-select-group">
+              <select
+                className="form-select form-select-sm"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="OPEN">Open</option>
+                <option value="ACKNOWLEDGED">Acknowledged</option>
+                <option value="RESOLVED">Resolved</option>
+              </select>
+
+              <select
+                className="form-select form-select-sm"
+                value={filterSeverity}
+                onChange={(e) => setFilterSeverity(e.target.value)}
+              >
+                <option value="ALL">All Severities</option>
+                <option value="CRITICAL">Critical</option>
+                <option value="WARNING">Warning</option>
+                <option value="INFO">Info</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div className="table-container">
           <table>
             <thead>
               <tr>
+                <th>Alert ID</th>
                 <th>Severity</th>
-                <th>Type</th>
                 <th>Model</th>
-                <th>Message</th>
+                <th>Alert Title & Description</th>
                 <th>Status</th>
                 <th>Created At</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {alerts.map((a) => (
+              {filteredAlerts.map((a) => (
                 <tr key={a.id}>
                   <td>
-                    <span className={`badge ${
-                      a.severity === 'CRITICAL' ? 'badge-error' :
-                      a.severity === 'WARNING' ? 'badge-warning' : 'badge-info'
-                    }`}>
+                    <div className="id-with-copy">
+                      <code>{a.id.slice(0, 8)}</code>
+                      <CopyButton text={a.id} tooltip="Copy Alert UUID" />
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      className={`badge ${
+                        a.severity === 'CRITICAL'
+                          ? 'badge-error'
+                          : a.severity === 'WARNING'
+                          ? 'badge-warning'
+                          : 'badge-info'
+                      }`}
+                    >
                       {a.severity}
                     </span>
                   </td>
-                  <td><code>{a.alert_type}</code></td>
-                  <td>{a.model_name}:v{a.model_version}</td>
-                  <td style={{ fontSize: '0.8125rem', maxWidth: '300px' }}>
-                    <div>{a.message}</div>
-                    {a.resolution_notes && (
-                      <div style={{ fontSize: '0.7rem', color: '#34d399', marginTop: '2px' }}>
-                        Note: {a.resolution_notes}
-                      </div>
-                    )}
+                  <td>
+                    <code>{a.model_name} v{a.model_version}</code>
                   </td>
                   <td>
-                    <span className={`badge ${
-                      a.status === 'OPEN' ? 'badge-error' :
-                      a.status === 'ACKNOWLEDGED' ? 'badge-warning' : 'badge-success'
-                    }`}>
-                      {a.status}
-                    </span>
+                    <div className="alert-text-block">
+                      <strong className="alert-title-text">{a.alert_type}</strong>
+                      <span className="alert-desc-text">{a.message}</span>
+                    </div>
                   </td>
-                  <td>{new Date(a.created_at).toLocaleString()}</td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <StatusBadge status={a.status} />
+                  </td>
+                  <td className="text-muted">
+                    {new Date(a.created_at).toLocaleString()}
+                  </td>
+                  <td>
+                    <div className="alert-actions-cell">
                       {a.status === 'OPEN' && (
                         <button
-                          className="btn btn-secondary"
-                          style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                          type="button"
+                          className="btn btn-secondary btn-sm"
                           onClick={() => handleAcknowledge(a.id)}
+                          title="Acknowledge alert"
                         >
-                          Acknowledge
+                          <UserCheck size={12} />
+                          <span>Acknowledge</span>
                         </button>
                       )}
                       {a.status !== 'RESOLVED' && (
                         <button
-                          className="btn btn-success"
-                          style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem' }}
+                          type="button"
+                          className="btn btn-primary btn-sm"
                           onClick={() => {
                             setResolveModal(a)
                             setResolveNotes('')
                           }}
+                          title="Resolve alert"
                         >
-                          Resolve
+                          <CheckCircle2 size={12} />
+                          <span>Resolve</span>
                         </button>
+                      )}
+                      {a.status === 'RESOLVED' && (
+                        <span className="text-muted" style={{ fontSize: '0.8rem' }}>
+                          Resolved
+                        </span>
                       )}
                     </div>
                   </td>
                 </tr>
               ))}
-              {alerts.length === 0 && (
+
+              {filteredAlerts.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
-                    No alerts found for selected filter.
+                  <td colSpan={7} className="empty-table-cell">
+                    No alerts match the selected status, severity, or search query.
                   </td>
                 </tr>
               )}
@@ -177,35 +286,62 @@ export const AlertsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Resolve Alert Modal */}
       {resolveModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">Resolve Alert ({resolveModal.alert_type})</div>
-            <form onSubmit={handleResolveSubmit}>
-              <div className="modal-body">
-                <p style={{ marginBottom: '1rem' }}>{resolveModal.message}</p>
-                <div className="form-group">
-                  <label className="form-label">Remediation Notes</label>
-                  <textarea
-                    className="form-textarea"
-                    placeholder="Describe corrective action taken (e.g. sensor recalibrated, model rolled back)..."
-                    value={resolveNotes}
-                    onChange={(e) => setResolveNotes(e.target.value)}
-                    required
-                  />
-                </div>
+        <Modal
+          isOpen={true}
+          onClose={() => !isResolving && setResolveModal(null)}
+          title={`Resolve Alert: ${resolveModal.alert_type}`}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setResolveModal(null)}
+                disabled={isResolving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleResolveSubmit}
+                disabled={isResolving}
+              >
+                {isResolving ? 'Resolving...' : 'Confirm Resolution'}
+              </button>
+            </>
+          }
+        >
+          <form onSubmit={handleResolveSubmit} className="modal-body-content">
+            <div className="modal-info-box">
+              <div className="info-row">
+                <span>Alert ID:</span>
+                <code>{resolveModal.id}</code>
               </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setResolveModal(null)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-success">
-                  Confirm Resolution
-                </button>
+              <div className="info-row">
+                <span>Model:</span>
+                <code>{resolveModal.model_name} v{resolveModal.model_version}</code>
               </div>
-            </form>
-          </div>
-        </div>
+              <div className="info-row">
+                <span>Severity:</span>
+                <span className="text-rose">{resolveModal.severity}</span>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <label className="form-label">Remediation Notes & Root Cause</label>
+              <textarea
+                className="form-input"
+                rows={3}
+                placeholder="Document remedial steps taken (e.g., retrained model, adjusted drift threshold)..."
+                value={resolveNotes}
+                onChange={(e) => setResolveNotes(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   )
