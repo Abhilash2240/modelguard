@@ -193,3 +193,14 @@ def test_quality_sufficient_labels_and_degradation_alert(db_session):
     assert alert is not None
     assert alert.severity == "WARNING" or alert.severity == "CRITICAL"
     assert alert.report_id == report.id
+
+
+def test_quality_no_active_champion_explicit_status(db_session):
+    """Verify that when no champion is deployed to production, quality returns NO_ACTIVE_CHAMPION status."""
+    service = FeedbackService(db_session)
+    # Ensure no production environment exists or has no active candidate
+    report = service.calculate_rolling_quality(model_name="metro-traffic-volume", model_version=None)
+    assert report.status == "NO_ACTIVE_CHAMPION"
+    assert report.model_version == "NONE"
+    assert report.details_json["min_samples_required"] == 10
+    assert "No active champion deployed" in report.details_json["message"]

@@ -18,9 +18,11 @@ This report documents the empirical benchmark results of the ModelGuard ML Relia
 
 | Partition | Share | Sample Count | Time Range | Purpose |
 |---|---|---|---|---|
-| **Train** | 70% | 33,742 | 2012-10-02 to 2016-12-15 | Model parameter fitting |
-| **Validation** | 15% | 7,230 | 2016-12-15 to 2017-11-08 | Candidate evaluation & Release Gate |
-| **Test Holdout** | 15% | 7,232 | 2017-11-08 to 2018-09-30 | Unbiased generalizability assessment |
+| **Train** | 70.0% | 33,743 | 2012-10-02 to 2016-12-15 | Model parameter fitting |
+| **Validation** | 15.0% | 7,230 | 2016-12-15 to 2017-11-08 | Candidate evaluation & Release Gate |
+| **Test Holdout** | 15.0% | 7,231 | 2017-11-08 to 2018-09-30 | Unbiased generalizability assessment |
+
+*Note: Partition counts reflect chronological boundary collision resolution implemented by `ChronologicalSplitter`. When identical timestamp clusters occur at partition cut boundaries, the splitter shifts the cut point to keep identical timestamp clusters together, ensuring temporal purity without leaking contemporaneous observations.*
 
 ---
 

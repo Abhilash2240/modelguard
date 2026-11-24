@@ -60,6 +60,10 @@ class DriftAnalysisRequest(BaseModel):
     significance_level: float = Field(0.05, description="Significance level alpha for statistical tests (e.g. KS-test)")
     psi_threshold: float = Field(0.25, description="PSI threshold indicating significant drift")
     policy_version: str = Field("v1.0.0", description="Version of the drift policy rules")
+    scenario: str | None = Field(
+        None,
+        description="Optional evidence scenario: None (default) for REAL_PRODUCTION, or 'synthetic_anomaly' for SYNTHETIC_TEST",
+    )
 
 
 class FeatureDriftResult(BaseModel):

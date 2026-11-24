@@ -1,3 +1,4 @@
+import enum
 import uuid
 from datetime import UTC, datetime
 
@@ -410,3 +411,24 @@ class MonitoringAlert(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     report = relationship("MonitoringReport", back_populates="alerts")
+
+
+class UserRole(enum.StrEnum):
+    VIEWER = "VIEWER"
+    OPERATOR = "OPERATOR"
+    APPROVER = "APPROVER"
+    ADMIN = "ADMIN"
+
+
+class User(Base):
+    """Persistent user account with role-based access control."""
+
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=False, default=UserRole.VIEWER.value, index=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)

@@ -22,11 +22,12 @@ flowchart TD
 
     subgraph API ["Control Plane Backend (FastAPI)"]
         HealthEndpoint["/api/v1/health"]
+        AuthRouter["/api/v1/auth (Argon2id + JWT Security)"]
         DatasetRouter["/api/v1/datasets (Pandera Validation)"]
         TrainingRouter["/api/v1/training (15-Stage Lifecycle)"]
         ModelRouter["/api/v1/models (Release Gate Engine)"]
         DeploymentRouter["/api/v1/deployments (Staging & Rollback)"]
-        InferenceRouter["/api/v1/inference (Champion Serving & Feedback)"]
+        InferenceRouter["/api/v1/predict (Champion Serving) & /feedback"]
         MonitoringRouter["/api/v1/monitoring (Drift Analysis & Alerts)"]
         MetricsRouter["/metrics (Prometheus Instrumentation)"]
     end
@@ -130,13 +131,45 @@ Launch the entire ecosystem (Backend, Frontend, MLflow, Prometheus, Grafana) wit
 docker compose up --build -d
 ```
 
-| Service | Access URL | Credentials |
+All host published ports are bound to `127.0.0.1` (localhost loopback isolation):
+
+| Service | Access URL | Credentials / Notes |
 |---|---|---|
-| **React Dashboard** | `http://localhost:3000` | N/A |
-| **FastAPI Backend** | `http://localhost:8000/docs` | N/A |
-| **MLflow UI** | `http://localhost:5000` | N/A |
-| **Prometheus Server** | `http://localhost:9090` | N/A |
-| **Grafana Dashboards** | `http://localhost:3001` | `admin` / `admin` |
+| **React Dashboard** | `http://localhost:3000` | Sign in with bootstrapped admin or role account |
+| **FastAPI Backend** | `http://localhost:8000/docs` | OpenAPI UI with Bearer JWT authentication |
+| **MLflow UI** | `http://localhost:5000` | Internal loopback (`127.0.0.1:5000`) |
+| **Prometheus Server** | `http://localhost:9090` | Internal loopback (`127.0.0.1:9090`) |
+| **Grafana Dashboards** | `http://localhost:3001` | User: `admin` / Password: `${GRAFANA_ADMIN_PASSWORD}` (configured in `.env`) |
+
+---
+
+## Authentication & Role-Based Access Control (RBAC)
+
+ModelGuard secures control plane operations using Argon2id password hashing, expiring cryptographic JWT tokens (HMAC-SHA256, 120-minute default), and strict role-based access control:
+
+| Role | Operational Scope | Permitted Actions |
+|---|---|---|
+| **`VIEWER`** | Read-only inspection & inference | View datasets, training runs, models, deployments, alerts, metrics; execute `/api/v1/predict` |
+| **`OPERATOR`** | SRE & incident response | All `VIEWER` permissions + trigger drift analysis, submit feedback, acknowledge/resolve alerts, execute audited rollback, run diagnostic inference |
+| **`APPROVER`** | Model governance & release | All `OPERATOR` permissions + stage model candidates, review automated smoke tests, approve & promote to production champion |
+| **`ADMIN`** | System administration | All `APPROVER` permissions + user provisioning and role administration |
+
+### Initial Administrator Bootstrapping & User Provisioning
+
+When launching for the first time, ModelGuard automatically provisions the initial administrator specified by `BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_PASSWORD` in your `.env`.
+
+To provision additional users or change roles via the CLI:
+```bash
+python backend/scripts/create_user.py --username alice --password <secure-password> --role OPERATOR
+```
+
+---
+
+## Real-World Monitoring & Drift Verification
+
+ModelGuard differentiates between:
+- **`REAL_PRODUCTION` Drift Analysis:** Evaluates live `PredictionEvent` telemetry collected from production traffic against the baseline reference dataset. If insufficient inference samples exist (< 10 observations), ModelGuard reports an explicit `INSUFFICIENT_DATA` status without fabricating synthetic data.
+- **`SYNTHETIC_TEST` Drift Demonstration:** Executes controlled covariate shift perturbations (e.g. ambient temperature shifted upward by $+30.0\,\text{K}$) strictly on-demand for system verification, alert escalation drills, and automated integration testing without polluting live production audit logs.
 
 ---
 

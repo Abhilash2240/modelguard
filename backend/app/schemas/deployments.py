@@ -15,17 +15,17 @@ class SmokeTestResult(BaseModel):
 
 
 class ApprovalRequest(BaseModel):
-    actor: str = Field(..., min_length=1, description="Approver identity or role")
+    actor: str | None = Field(None, description="Approver identity or role (derived from session if omitted)")
     rationale: str = Field(..., min_length=1, description="Justification for approving model version")
 
 
 class RejectionRequest(BaseModel):
-    actor: str = Field(..., min_length=1, description="Reviewer identity or role")
+    actor: str | None = Field(None, description="Reviewer identity or role (derived from session if omitted)")
     reason: str = Field(..., min_length=1, description="Justification for rejecting model version")
 
 
 class RollbackRequest(BaseModel):
-    actor: str = Field("operator", min_length=1, description="Operator initiating the rollback")
+    actor: str | None = Field(None, description="Operator initiating the rollback (derived from session if omitted)")
     reason: str = Field(..., min_length=1, description="Mandatory operational justification for rollback")
     target_candidate_id: str | None = Field(
         None, description="Optional target candidate ID. If omitted, rolls back to previous known-good champion."

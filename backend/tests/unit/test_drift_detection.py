@@ -131,3 +131,61 @@ def test_prediction_drift_separated_from_input_drift(db_session):
     )
     assert alert is not None
     assert "Prediction distribution shift detected" in alert.message
+
+
+def test_input_drift_from_telemetry_events(db_session, sample_traffic_df):
+    """Test input drift detection computed from privacy-preserving telemetry histogram counts."""
+    service = DriftAnalysisService(db_session)
+
+    # Build simulated telemetry events matching reference distribution
+    events = []
+    for _ in range(10):
+        ev = models.PredictionEvent(
+            inference_id=models.generate_uuid(),
+            candidate_id=models.generate_uuid(),
+            model_name="metro-traffic-volume",
+            model_version="1",
+            latency_ms=25.0,
+            status="SUCCESS",
+            prediction_json={"predictions": [2500.0, 3000.0], "count": 2},
+            input_summary_json={
+                "row_count": 2,
+                "null_counts": {
+                    "temp": 0,
+                    "clouds_all": 0,
+                    "rain_1h": 0,
+                    "snow_1h": 0,
+                    "holiday": 0,
+                    "weather_main": 0,
+                    "weather_description": 0,
+                },
+                "numeric_stats": {
+                    "temp": {"bin_counts": [0, 0, 0, 1, 1, 0, 0, 0]},
+                    "clouds_all": {"bin_counts": [0, 1, 0, 0, 0, 1]},
+                    "rain_1h": {"bin_counts": [2, 0, 0, 0, 0, 0, 0]},
+                    "snow_1h": {"bin_counts": [2, 0, 0, 0, 0, 0]},
+                },
+                "categorical_stats": {
+                    "holiday": {"frequencies": {"None": 2}, "missing_count": 0},
+                    "weather_main": {"frequencies": {"Clear": 1, "Clouds": 1}, "missing_count": 0},
+                    "weather_description": {"frequencies": {"sky is clear": 1, "few clouds": 1}, "missing_count": 0},
+                },
+            },
+        )
+        db_session.add(ev)
+        events.append(ev)
+    db_session.commit()
+
+    report = service.analyze_input_drift_from_telemetry(
+        events=events,
+        reference_df=sample_traffic_df,
+        model_name="metro-traffic-volume",
+        model_version="1",
+    )
+
+    assert report.report_type == "DATA_DRIFT"
+    assert report.detection_method == "TELEMETRY_HISTOGRAM_PSI_AND_TVD"
+    assert report.summary_json["evidence_source"] == "REAL_PRODUCTION"
+    assert report.summary_json["live_events_analyzed"] == 10
+    assert report.summary_json["total_observations_analyzed"] == 20
+    assert len(report.metrics_json["features"]) > 0

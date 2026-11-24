@@ -70,7 +70,7 @@ def test_quality_api(client: TestClient, seeded_db: Session):
     resp = client.get("/api/v1/quality?model_name=metro-traffic-volume&min_samples=10")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] in ("INSUFFICIENT_LABELS", "SUFFICIENT_LABELS")
+    assert data["status"] in ("INSUFFICIENT_LABELS", "SUFFICIENT_LABELS", "NO_ACTIVE_CHAMPION")
 
 
 def test_alerts_api_lifecycle(client: TestClient, seeded_db: Session):

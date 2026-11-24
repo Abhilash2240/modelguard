@@ -45,6 +45,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     case 'AWAITING_APPROVAL':
     case 'WARNING':
     case 'INSUFFICIENT_LABELS':
+    case 'INSUFFICIENT_DATA':
+    case 'NO_ACTIVE_CHAMPION':
     case 'ACKNOWLEDGED':
     case 'SHIFT':
       theme = 'badge-amber'
@@ -52,7 +54,21 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         label = 'Insufficient Labels'
         defaultTooltip = defaultTooltip || 'Requires >= 10 labeled ground truth feedback records for statistical confidence'
       }
+      if (normalized === 'INSUFFICIENT_DATA') {
+        label = 'Insufficient Data'
+        defaultTooltip = defaultTooltip || 'Requires >= 5 live inference events (10 observations)'
+      }
+      if (normalized === 'NO_ACTIVE_CHAMPION') {
+        label = 'No Active Champion'
+        defaultTooltip = defaultTooltip || 'No champion model deployed to production'
+      }
       if (normalized === 'AWAITING_APPROVAL') label = 'Awaiting Approval'
+      break
+
+    case 'NOT_EVALUATED':
+      theme = 'badge-neutral'
+      label = 'Not Evaluated'
+      defaultTooltip = defaultTooltip || 'No evaluation report recorded yet'
       break
 
     case 'FAILED':

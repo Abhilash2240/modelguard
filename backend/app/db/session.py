@@ -30,7 +30,8 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
-    """Initialize database tables and seed default environments."""
+    """Initialize database tables, seed default environments, and bootstrap admin if configured."""
+    from app.core.security import get_password_hash
     from app.db import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
@@ -40,6 +41,18 @@ def init_db() -> None:
             env = db.query(models.DeploymentEnvironment).filter(models.DeploymentEnvironment.name == env_name).first()
             if not env:
                 db.add(models.DeploymentEnvironment(name=env_name))
+
+        # Bootstrap initial administrator only if explicitly configured in environment
+        if settings.BOOTSTRAP_ADMIN_USERNAME and settings.BOOTSTRAP_ADMIN_PASSWORD:
+            existing = db.query(models.User).filter(models.User.username == settings.BOOTSTRAP_ADMIN_USERNAME).first()
+            if not existing:
+                admin_user = models.User(
+                    username=settings.BOOTSTRAP_ADMIN_USERNAME,
+                    hashed_password=get_password_hash(settings.BOOTSTRAP_ADMIN_PASSWORD),
+                    role=models.UserRole.ADMIN.value,
+                    is_active=True,
+                )
+                db.add(admin_user)
         db.commit()
     finally:
         db.close()

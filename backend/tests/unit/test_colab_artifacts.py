@@ -1,13 +1,27 @@
 """Unit and regression tests for Colab exported training artifacts and reproducibility."""
 
 import json
+from collections import UserList
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
 import pytest
+import sklearn.compose._column_transformer as _ct
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+# Ensure backwards-compatibility for models serialized with scikit-learn <= 1.6
+if not hasattr(_ct, "_RemainderColsList"):
+
+    class _RemainderColsList(UserList):
+        def __init__(self, columns=None, *args, **kwargs):
+            super().__init__(columns or [])
+            self.future_dtype = kwargs.get("future_dtype")
+            self.warning_was_emitted = kwargs.get("warning_was_emitted", False)
+            self.warning_enabled = kwargs.get("warning_enabled", True)
+
+    _ct._RemainderColsList = _RemainderColsList
 
 
 @pytest.fixture

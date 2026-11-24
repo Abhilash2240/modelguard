@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
+import { LoginModal } from './components/LoginModal'
 import { Navbar } from './components/Navbar'
 import { Sidebar, type TabKey } from './components/Sidebar'
 import { ToastProvider, useToast } from './components/Toast'
-import type { Deployment, HealthResponse } from './types'
+import type { Deployment, HealthResponse, UserProfile } from './types'
 import { AlertsView } from './views/AlertsView'
 import { DatasetsView } from './views/DatasetsView'
 import { DeploymentsView } from './views/DeploymentsView'
@@ -22,11 +23,47 @@ const MainContent: React.FC = () => {
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
+  // Auth state
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
+  const [loginModalOpen, setLoginModalOpen] = useState<boolean>(false)
+
   // Global control-plane state for Navbar and Sidebar
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [deployments, setDeployments] = useState<Deployment[]>([])
   const [openAlertsCount, setOpenAlertsCount] = useState<number>(0)
   const { addToast } = useToast()
+
+  // Restore user session on mount
+  useEffect(() => {
+    let isMounted = true
+    api.getMe()
+      .then((user) => {
+        if (isMounted) setCurrentUser(user)
+      })
+      .catch(() => {
+        if (isMounted) setCurrentUser(null)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  // Listen for unauthorized 401 events across the app
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setCurrentUser(null)
+      setLoginModalOpen(true)
+      addToast({
+        type: 'warning',
+        title: 'Authentication Required',
+        message: 'Your session has expired or requires authorization. Please sign in.',
+      })
+    }
+    window.addEventListener('mg:unauthorized', handleUnauthorized)
+    return () => {
+      window.removeEventListener('mg:unauthorized', handleUnauthorized)
+    }
+  }, [addToast])
 
   const loadGlobalState = useCallback(async () => {
     try {
@@ -68,6 +105,31 @@ const MainContent: React.FC = () => {
     }, 600)
   }
 
+  const handleLogout = async () => {
+    try {
+      await api.logout()
+      setCurrentUser(null)
+      addToast({
+        type: 'info',
+        title: 'Signed Out',
+        message: 'You have been signed out of the control plane.',
+      })
+    } catch {
+      setCurrentUser(null)
+    }
+  }
+
+  const handleLoginSuccess = (user: UserProfile) => {
+    setCurrentUser(user)
+    setLoginModalOpen(false)
+    addToast({
+      type: 'success',
+      title: 'Authenticated',
+      message: `Signed in as ${user.username} (${user.role}).`,
+    })
+    setRefreshTrigger((prev) => prev + 1)
+  }
+
   // Find active champion deployment
   const prodDeployment = deployments.find((d) => d.status === 'PROMOTED')
   const stagingDeployment = deployments.find((d) => d.status === 'STAGED' || d.status === 'AWAITING_APPROVAL')
@@ -103,6 +165,9 @@ const MainContent: React.FC = () => {
           healthStatus={health?.status || 'healthy'}
           activeModelName={prodDeployment?.candidate_id ? 'metro-traffic-volume' : 'metro-traffic-volume'}
           activeModelVersion={prodDeployment?.candidate_version || '1'}
+          currentUser={currentUser}
+          onOpenLogin={() => setLoginModalOpen(true)}
+          onLogout={handleLogout}
         />
 
         {/* Viewport content */}
@@ -122,6 +187,13 @@ const MainContent: React.FC = () => {
           {activeTab === 'alerts' && <AlertsView refreshTrigger={refreshTrigger} />}
         </main>
       </div>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   )
 }

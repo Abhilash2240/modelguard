@@ -7,7 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.session import Base, get_db
+from app.api.deps import get_current_user, get_db
+from app.db import models
+from app.db.session import Base
 from app.main import app
 
 # Use in-memory SQLite with StaticPool so all connections share the same database
@@ -41,7 +43,19 @@ def client(db: Session) -> Generator[TestClient, None, None]:
         finally:
             pass
 
+    admin_user = models.User(
+        id="test-admin-uuid",
+        username="test_admin",
+        hashed_password="hashed_admin_pass",
+        role=models.UserRole.ADMIN.value,
+        is_active=True,
+    )
+
+    def override_get_current_user():
+        return admin_user
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
