@@ -4,8 +4,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from app.api.deps import get_dataset_service
+from app.api.deps import get_dataset_service, require_operator, require_viewer
 from app.core.errors import EntityNotFoundError, IntegrityError, InvalidOperationError, StorageError
+from app.db import models
 from app.schemas.dataset import (
     DatasetCreate,
     DatasetDetailResponse,
@@ -21,9 +22,10 @@ router = APIRouter(prefix="", tags=["Datasets"])
 @router.post("/datasets", response_model=DatasetResponse, status_code=status.HTTP_201_CREATED)
 def register_dataset(
     payload: DatasetCreate,
+    current_user: models.User = Depends(require_operator),
     service: DatasetService = Depends(get_dataset_service),
 ):
-    """Register a new logical dataset."""
+    """Register a new logical dataset. Protected: Operator+"""
     try:
         return service.register_dataset(payload)
     except InvalidOperationError as e:
@@ -31,14 +33,21 @@ def register_dataset(
 
 
 @router.get("/datasets", response_model=list[DatasetResponse])
-def list_datasets(service: DatasetService = Depends(get_dataset_service)):
-    """List all registered datasets."""
+def list_datasets(
+    current_user: models.User = Depends(require_viewer),
+    service: DatasetService = Depends(get_dataset_service),
+):
+    """List all registered datasets. Protected: Viewer+"""
     return service.list_datasets()
 
 
 @router.get("/datasets/{dataset_id}", response_model=DatasetDetailResponse)
-def get_dataset(dataset_id: str, service: DatasetService = Depends(get_dataset_service)):
-    """Get dataset details with versions."""
+def get_dataset(
+    dataset_id: str,
+    current_user: models.User = Depends(require_viewer),
+    service: DatasetService = Depends(get_dataset_service),
+):
+    """Get dataset details with versions. Protected: Viewer+"""
     try:
         return service.get_dataset(dataset_id)
     except EntityNotFoundError as e:
@@ -54,9 +63,10 @@ async def upload_dataset_version(
     dataset_id: str,
     version_tag: str = Form(..., description="e.g. v1.0.0"),
     file: UploadFile = File(...),
+    current_user: models.User = Depends(require_operator),
     service: DatasetService = Depends(get_dataset_service),
 ):
-    """Upload a CSV dataset snapshot and create an immutable version."""
+    """Upload a CSV dataset snapshot and create an immutable version. Protected: Operator+"""
     if not file.filename.endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -87,8 +97,12 @@ async def upload_dataset_version(
 
 
 @router.get("/dataset-versions/{version_id}", response_model=DatasetVersionResponse)
-def get_dataset_version(version_id: str, service: DatasetService = Depends(get_dataset_service)):
-    """Get metadata for an immutable dataset version snapshot."""
+def get_dataset_version(
+    version_id: str,
+    current_user: models.User = Depends(require_viewer),
+    service: DatasetService = Depends(get_dataset_service),
+):
+    """Get metadata for an immutable dataset version snapshot. Protected: Viewer+"""
     try:
         return service.get_dataset_version(version_id)
     except EntityNotFoundError as e:
@@ -99,9 +113,10 @@ def get_dataset_version(version_id: str, service: DatasetService = Depends(get_d
 def validate_dataset_version(
     version_id: str,
     contract_version: str = "v1",
+    current_user: models.User = Depends(require_operator),
     service: DatasetService = Depends(get_dataset_service),
 ):
-    """Validate a dataset version against a versioned Pandera contract."""
+    """Validate a dataset version against a versioned Pandera contract. Protected: Operator+"""
     try:
         return service.validate_version(version_id=version_id, contract_version=contract_version)
     except EntityNotFoundError as e:
@@ -115,9 +130,10 @@ def validate_dataset_version(
 @router.get("/validation-runs/{run_id}", response_model=ValidationRunResponse)
 def get_validation_run(
     run_id: str,
+    current_user: models.User = Depends(require_viewer),
     service: DatasetService = Depends(get_dataset_service),
 ):
-    """Retrieve full audit findings for a validation run."""
+    """Retrieve full audit findings for a validation run. Protected: Viewer+"""
     from app.db.models import ValidationRun
 
     run = service.db.query(ValidationRun).filter(ValidationRun.id == run_id).first()

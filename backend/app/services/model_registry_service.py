@@ -174,21 +174,46 @@ class ModelRegistryService:
         if not train_succeeded and policy.require_training_succeeded:
             rejection_reasons.append("Underlying TrainingRun status is not SUCCEEDED.")
 
-        # 3. Metrics availability check
+        # 3. Metrics availability & validity check (fail-closed)
         metrics = candidate.metrics_json or {}
-        has_required_metrics = all(
-            k in metrics for k in ("candidate_val_mae", "candidate_val_rmse", "candidate_val_r2")
+        has_required_keys = all(
+            k in metrics and metrics[k] is not None
+            for k in ("candidate_val_mae", "candidate_val_rmse", "candidate_val_r2")
         )
-        criteria_results["required_metrics_present"] = has_required_metrics
-        if not has_required_metrics:
+
+        valid_candidate_metrics = False
+        val_mae: float | None = None
+        val_rmse: float | None = None
+        val_r2: float | None = None
+
+        if not has_required_keys:
+            criteria_results["required_metrics_present"] = False
             rejection_reasons.append(
                 "Evaluation metrics missing candidate_val_mae, candidate_val_rmse, or candidate_val_r2."
             )
         else:
-            val_mae = float(metrics["candidate_val_mae"])
-            val_rmse = float(metrics["candidate_val_rmse"])
-            val_r2 = float(metrics["candidate_val_r2"])
+            try:
+                raw_mae = float(metrics["candidate_val_mae"])
+                raw_rmse = float(metrics["candidate_val_rmse"])
+                raw_r2 = float(metrics["candidate_val_r2"])
 
+                if math.isnan(raw_mae) or math.isinf(raw_mae) or raw_mae < 0:
+                    criteria_results["required_metrics_present"] = False
+                    rejection_reasons.append(f"Candidate val MAE ({raw_mae}) is invalid, NaN, or non-finite.")
+                elif math.isnan(raw_rmse) or math.isinf(raw_rmse) or raw_rmse < 0:
+                    criteria_results["required_metrics_present"] = False
+                    rejection_reasons.append(f"Candidate val RMSE ({raw_rmse}) is invalid, NaN, or non-finite.")
+                else:
+                    val_mae = raw_mae
+                    val_rmse = raw_rmse
+                    val_r2 = raw_r2
+                    valid_candidate_metrics = True
+                    criteria_results["required_metrics_present"] = True
+            except (ValueError, TypeError) as e:
+                criteria_results["required_metrics_present"] = False
+                rejection_reasons.append(f"Candidate evaluation metrics could not be parsed as numeric floats: {e}")
+
+        if valid_candidate_metrics and val_mae is not None and val_rmse is not None and val_r2 is not None:
             evaluated_metrics["candidate_val_mae"] = val_mae
             evaluated_metrics["candidate_val_rmse"] = val_rmse
             evaluated_metrics["candidate_val_r2"] = val_r2
@@ -223,39 +248,56 @@ class ModelRegistryService:
 
             # 5. Baseline comparison check
             baseline_mae = metrics.get("baseline_val_mae")
-            if baseline_mae is not None and float(baseline_mae) > 0:
-                base_mae = float(baseline_mae)
-                evaluated_metrics["baseline_val_mae"] = base_mae
-                improvement_pct = ((base_mae - val_mae) / base_mae) * 100.0
-                evaluated_metrics["baseline_improvement_pct"] = improvement_pct
-                baseline_ok = improvement_pct >= policy.min_mae_improvement_pct
-                criteria_results["beats_baseline"] = baseline_ok
-                if not baseline_ok:
-                    rejection_reasons.append(
-                        f"Candidate MAE improvement over baseline ({improvement_pct:.1f}%) is below required {policy.min_mae_improvement_pct:.1f}%."
-                    )
+            if baseline_mae is not None:
+                try:
+                    base_mae = float(baseline_mae)
+                    if math.isnan(base_mae) or math.isinf(base_mae) or base_mae <= 0:
+                        criteria_results["beats_baseline"] = False
+                        rejection_reasons.append(f"Baseline validation MAE ({base_mae}) is non-positive or non-finite.")
+                    else:
+                        evaluated_metrics["baseline_val_mae"] = base_mae
+                        improvement_pct = ((base_mae - val_mae) / base_mae) * 100.0
+                        evaluated_metrics["baseline_improvement_pct"] = improvement_pct
+                        baseline_ok = improvement_pct >= policy.min_mae_improvement_pct
+                        criteria_results["beats_baseline"] = baseline_ok
+                        if not baseline_ok:
+                            rejection_reasons.append(
+                                f"Candidate MAE improvement over baseline ({improvement_pct:.1f}%) is below required {policy.min_mae_improvement_pct:.1f}%."
+                            )
+                except (ValueError, TypeError):
+                    criteria_results["beats_baseline"] = False
+                    rejection_reasons.append("Baseline validation MAE could not be parsed as numeric float.")
             else:
                 criteria_results["beats_baseline"] = False
-                rejection_reasons.append("Baseline validation MAE missing or non-positive; cannot compute improvement.")
+                rejection_reasons.append("Baseline validation MAE missing; cannot compute improvement.")
 
-        # 6. Current champion comparison check (if champion exists)
-        prod_env = (
-            self.db.query(models.DeploymentEnvironment)
-            .filter(models.DeploymentEnvironment.name == "production")
-            .first()
-        )
-        if prod_env and prod_env.active_candidate_id and prod_env.active_candidate_id != candidate.id:
-            champion = prod_env.active_candidate
-            if champion and champion.metrics_json and "candidate_val_mae" in champion.metrics_json:
-                champ_mae = float(champion.metrics_json["candidate_val_mae"])
-                evaluated_metrics["champion_val_mae"] = champ_mae
-                max_allowed_mae = champ_mae * (1.0 + (policy.max_regression_pct_vs_champion / 100.0))
-                champ_ok = val_mae <= max_allowed_mae
-                criteria_results["champion_regression_within_tolerance"] = champ_ok
-                if not champ_ok:
-                    rejection_reasons.append(
-                        f"Candidate val MAE ({val_mae:.2f}) regresses by more than {policy.max_regression_pct_vs_champion}% against champion ({champ_mae:.2f})."
-                    )
+            # 6. Current champion comparison check (if champion exists)
+            prod_env = (
+                self.db.query(models.DeploymentEnvironment)
+                .filter(models.DeploymentEnvironment.name == "production")
+                .first()
+            )
+            if prod_env and prod_env.active_candidate_id and prod_env.active_candidate_id != candidate.id:
+                champion = prod_env.active_candidate
+                if champion and champion.metrics_json and "candidate_val_mae" in champion.metrics_json:
+                    try:
+                        champ_mae = float(champion.metrics_json["candidate_val_mae"])
+                        evaluated_metrics["champion_val_mae"] = champ_mae
+                        max_allowed_mae = champ_mae * (1.0 + (policy.max_regression_pct_vs_champion / 100.0))
+                        champ_ok = val_mae <= max_allowed_mae
+                        criteria_results["champion_regression_within_tolerance"] = champ_ok
+                        if not champ_ok:
+                            rejection_reasons.append(
+                                f"Candidate val MAE ({val_mae:.2f}) regresses by more than {policy.max_regression_pct_vs_champion}% against champion ({champ_mae:.2f})."
+                            )
+                    except (ValueError, TypeError):
+                        pass
+        else:
+            # Candidate metrics were missing or non-finite: fail closed
+            criteria_results["max_val_mae_met"] = False
+            criteria_results["max_val_rmse_met"] = False
+            criteria_results["min_val_r2_met"] = False
+            criteria_results["beats_baseline"] = False
 
         # 7. Model artifact load test
         load_ok = False

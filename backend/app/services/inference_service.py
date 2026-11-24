@@ -46,19 +46,30 @@ class InferenceService:
         self.tracking_uri = tracking_uri or settings.MLFLOW_TRACKING_URI
         self._model_cache: dict[str, Any] = {}
 
-    def _resolve_candidate(self, model_version: str | None = None) -> models.ModelCandidate:
-        """Resolve exact candidate record from explicit version or active production champion."""
-        if model_version:
+    def _resolve_candidate(
+        self,
+        model_version: str | None = None,
+        is_diagnostic: bool = False,
+    ) -> models.ModelCandidate:
+        """Resolve candidate record.
+
+        In production inference (is_diagnostic=False), strictly resolves the active approved
+        production champion. If an explicit model_version is passed, verifies it matches the champion.
+        In diagnostic mode (is_diagnostic=True), allows evaluating any registered candidate.
+        """
+        if is_diagnostic and model_version:
             candidate = (
                 self.db.query(models.ModelCandidate)
                 .filter(models.ModelCandidate.mlflow_model_version == str(model_version))
                 .first()
             )
             if not candidate:
-                raise EntityNotFoundError(f"ModelCandidate with version '{model_version}' not found.")
+                raise EntityNotFoundError(
+                    f"ModelCandidate with version '{model_version}' not found for diagnostic inference."
+                )
             return candidate
 
-        # Default to active production champion
+        # Default / Production: Resolve active production champion
         prod_env = (
             self.db.query(models.DeploymentEnvironment)
             .filter(models.DeploymentEnvironment.name == "production")
@@ -72,6 +83,19 @@ class InferenceService:
         candidate = prod_env.active_candidate
         if not candidate:
             raise EntityNotFoundError("Active production candidate record missing from database.")
+
+        if candidate.status != "PROMOTED":
+            raise InferenceError(
+                f"Active candidate '{candidate.id}' is in status '{candidate.status}', not 'PROMOTED'. Production inference blocked."
+            )
+
+        # Enforce champion policy: caller cannot silently bypass production champion in production inference
+        if model_version and str(model_version) != str(candidate.mlflow_model_version):
+            raise InferenceError(
+                f"Model version '{model_version}' is not the active production champion (active version: '{candidate.mlflow_model_version}'). "
+                f"Production inference serves only the promoted champion. For non-production diagnostics, use /api/v1/inference/diagnostic."
+            )
+
         return candidate
 
     def _get_model(self, candidate: models.ModelCandidate) -> Any:
@@ -160,11 +184,39 @@ class InferenceService:
         if not np.all(np.isfinite(raw_predictions)):
             raise InferenceError("Model produced non-finite (NaN or Inf) predictions.")
 
-        # Construct privacy-safe input summary (no raw payload retained)
+        # Construct privacy-safe input summary with sufficient statistics (no raw payload retained)
+        numeric_stats = {}
+        for num_col in ("temp", "rain_1h", "snow_1h", "clouds_all"):
+            if num_col in df_raw.columns:
+                s = pd.to_numeric(df_raw[num_col], errors="coerce").dropna()
+                if len(s) > 0:
+                    numeric_stats[num_col] = {
+                        "count": int(len(s)),
+                        "mean": float(s.mean()),
+                        "std": float(s.std()) if len(s) > 1 else 0.0,
+                        "min": float(s.min()),
+                        "max": float(s.max()),
+                        "q25": float(s.quantile(0.25)),
+                        "q50": float(s.median()),
+                        "q75": float(s.quantile(0.75)),
+                    }
+
+        categorical_stats = {}
+        for cat_col in ("holiday", "weather_main", "weather_description"):
+            if cat_col in df_raw.columns:
+                missing_cnt = int(df_raw[cat_col].isna().sum())
+                val_counts = df_raw[cat_col].dropna().astype(str).value_counts().to_dict()
+                categorical_stats[cat_col] = {
+                    "missing_count": missing_cnt,
+                    "frequencies": {str(k): int(v) for k, v in val_counts.items()},
+                }
+
         input_summary = {
             "row_count": len(request.inputs),
             "features_received": list(request.inputs[0].keys()),
             "null_counts": {k: int(v) for k, v in df_raw.isnull().sum().items()},
+            "numeric_stats": numeric_stats,
+            "categorical_stats": categorical_stats,
         }
 
         # Track inference metrics in Prometheus
@@ -186,6 +238,64 @@ class InferenceService:
 
         logger.info(
             f"Inference '{inference_id}' succeeded: model '{candidate.mlflow_model_name}' v{candidate.mlflow_model_version}, {len(preds_list)} records, {latency_ms:.2f}ms."
+        )
+
+        return PredictionResponse(
+            inference_id=inference_id,
+            model_name=candidate.mlflow_model_name,
+            model_version=candidate.mlflow_model_version,
+            predictions=preds_list,
+            latency_ms=latency_ms,
+            timestamp=request_time,
+        )
+
+    def predict_diagnostic(self, request: PredictionRequest, actor: str) -> PredictionResponse:
+        """Execute non-production diagnostic inference without altering production champion routing."""
+        start_time = time.perf_counter()
+        request_time = utc_now()
+        inference_id = str(uuid.uuid4())
+
+        df_raw = self.validate_inputs(request.inputs)
+        X, _ = prepare_features(df_raw, target_col="traffic_volume")
+
+        # In diagnostic mode, resolve candidate explicitly without requiring it to be production champion
+        candidate = self._resolve_candidate(request.model_version, is_diagnostic=True)
+        model = self._get_model(candidate)
+
+        try:
+            raw_predictions = model.predict(X)
+        except Exception as e:
+            raise InferenceError(f"Diagnostic estimation failed: {e}") from e
+
+        latency_ms = (time.perf_counter() - start_time) * 1000.0
+        preds_list = [float(p) for p in raw_predictions]
+
+        if not np.all(np.isfinite(raw_predictions)):
+            raise InferenceError("Diagnostic model produced non-finite predictions.")
+
+        input_summary = {
+            "row_count": len(request.inputs),
+            "diagnostic_actor": actor,
+            "environment": "diagnostic",
+            "features_received": list(request.inputs[0].keys()),
+        }
+
+        event = models.PredictionEvent(
+            inference_id=inference_id,
+            candidate_id=candidate.id,
+            model_name=candidate.mlflow_model_name,
+            model_version=candidate.mlflow_model_version,
+            request_time=request_time,
+            latency_ms=latency_ms,
+            status="SUCCESS",
+            prediction_json={"predictions": preds_list, "count": len(preds_list), "is_diagnostic": True},
+            input_summary_json=input_summary,
+        )
+        self.db.add(event)
+        self.db.commit()
+
+        logger.info(
+            f"Diagnostic inference '{inference_id}' by '{actor}': model '{candidate.mlflow_model_name}' v{candidate.mlflow_model_version}."
         )
 
         return PredictionResponse(

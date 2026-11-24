@@ -35,8 +35,13 @@ class Settings(BaseSettings):
     MLFLOW_TRACKING_URI: str = f"sqlite:///{(STORAGE_DIR / 'mlflow' / 'mlflow.db').resolve().as_posix()}"
     MLFLOW_ARTIFACT_ROOT: str = (STORAGE_DIR / "mlflow" / "artifacts").resolve().as_uri()
 
-    # Security
+    # Security & Authentication
     ALLOWED_ORIGINS: list[str] = ["*"]
+    SECRET_KEY: str = "modelguard-insecure-development-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+    BOOTSTRAP_ADMIN_USERNAME: str | None = None
+    BOOTSTRAP_ADMIN_PASSWORD: str | None = None
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

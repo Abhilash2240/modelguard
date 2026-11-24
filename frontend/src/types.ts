@@ -201,3 +201,24 @@ export interface Alert {
   resolution_notes?: string
   created_at: string
 }
+
+export type UserRole = 'VIEWER' | 'OPERATOR' | 'APPROVER' | 'ADMIN'
+
+export interface UserProfile {
+  id: string
+  username: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+}
+
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+  user: UserProfile
+}

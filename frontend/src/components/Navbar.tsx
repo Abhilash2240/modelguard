@@ -1,5 +1,6 @@
 import React from 'react'
-import { ExternalLink, Menu, RefreshCw, ShieldCheck } from 'lucide-react'
+import { ExternalLink, LogIn, LogOut, Menu, RefreshCw, ShieldCheck, User } from 'lucide-react'
+import type { UserProfile } from '../types'
 
 interface NavbarProps {
   onToggleMobile: () => void
@@ -8,6 +9,9 @@ interface NavbarProps {
   healthStatus?: 'healthy' | 'degraded' | 'unhealthy' | string
   activeModelName?: string
   activeModelVersion?: string
+  currentUser?: UserProfile | null
+  onOpenLogin?: () => void
+  onLogout?: () => void
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,6 +21,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   healthStatus = 'healthy',
   activeModelName = 'metro-traffic-volume',
   activeModelVersion = '1',
+  currentUser = null,
+  onOpenLogin,
+  onLogout,
 }) => {
   return (
     <header className="app-navbar" aria-label="Global Controls">
@@ -51,6 +58,45 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="navbar-right">
+        {currentUser ? (
+          <div className="user-profile-badge">
+            <span className="user-avatar-icon" title={`Authenticated as ${currentUser.username}`}>
+              <User size={13} />
+            </span>
+            <span className="user-name" title={currentUser.username}>
+              {currentUser.username}
+            </span>
+            <span className={`role-badge role-${currentUser.role.toLowerCase()}`} title={`Role: ${currentUser.role}`}>
+              {currentUser.role}
+            </span>
+            {onLogout && (
+              <button
+                type="button"
+                className="navbar-btn logout-btn"
+                onClick={onLogout}
+                title="Sign out of control plane"
+              >
+                <LogOut size={13} />
+                <span className="btn-label">Logout</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          onOpenLogin && (
+            <button
+              type="button"
+              className="navbar-btn login-nav-btn"
+              onClick={onOpenLogin}
+              title="Sign in to control plane"
+            >
+              <LogIn size={13} />
+              <span className="btn-label">Sign In</span>
+            </button>
+          )
+        )}
+
+        <div className="nav-divider" />
+
         {onRefresh && (
           <button
             type="button"

@@ -1,8 +1,21 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import alerts, datasets, deployments, drift, feedback, health, inference, metrics, models, training
+from app.api.v1.routes import (
+    alerts,
+    auth,
+    datasets,
+    deployments,
+    drift,
+    feedback,
+    health,
+    inference,
+    metrics,
+    models,
+    training,
+)
 
 api_router = APIRouter()
+api_router.include_router(auth.router)
 api_router.include_router(health.router)
 api_router.include_router(datasets.router)
 api_router.include_router(training.router)

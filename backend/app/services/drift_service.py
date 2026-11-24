@@ -92,6 +92,7 @@ class DriftAnalysisService:
         alpha: float = 0.05,
         psi_threshold: float = 0.25,
         policy_version: str = "v1.0.0",
+        evidence_source: str = "REAL_PRODUCTION",
     ) -> models.MonitoringReport:
         """Analyze numeric, categorical, and data-quality drift across input features.
 
@@ -152,11 +153,12 @@ class DriftAnalysisService:
         # 2. Evaluate Categorical Features
         for feat in categorical_features:
             if feat in reference_df.columns and feat in current_df.columns:
-                ref_s = reference_df[feat].astype(str)
-                curr_s = current_df[feat].astype(str)
+                # Calculate missingness strictly BEFORE string conversion to prevent NaN string masking
+                missing_ref = float(reference_df[feat].isna().mean())
+                missing_curr = float(current_df[feat].isna().mean())
 
-                missing_ref = float(ref_s.isna().mean())
-                missing_curr = float(curr_s.isna().mean())
+                ref_s = reference_df[feat].dropna().astype(str)
+                curr_s = current_df[feat].dropna().astype(str)
 
                 tvd = compute_categorical_tvd(ref_s, curr_s)
                 unseen_categories = set(curr_s.unique()) - set(ref_s.unique())
@@ -189,6 +191,7 @@ class DriftAnalysisService:
             "drifting_features": drifting_features,
             "significance_level": alpha,
             "psi_threshold": psi_threshold,
+            "evidence_source": evidence_source,
         }
 
         limitations_text = (
@@ -252,6 +255,7 @@ class DriftAnalysisService:
         alpha: float = 0.05,
         psi_threshold: float = 0.25,
         policy_version: str = "v1.0.0",
+        evidence_source: str = "REAL_PRODUCTION",
     ) -> models.MonitoringReport:
         """Analyze prediction distribution drift strictly separated from input drift.
 
@@ -286,6 +290,7 @@ class DriftAnalysisService:
             "psi": psi_val,
             "alpha": alpha,
             "psi_threshold": psi_threshold,
+            "evidence_source": evidence_source,
         }
 
         limitations_text = (

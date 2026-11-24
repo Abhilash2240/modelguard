@@ -113,7 +113,7 @@ def test_api_deployment_lifecycle(client: TestClient, seed_candidate):
     )
     assert res_app.status_code == 200
     assert res_app.json()["status"] == "APPROVED"
-    assert res_app.json()["approved_by"] == "lead-approver"
+    assert res_app.json()["approved_by"] == "test_admin"
 
     # 3. Promote deployment
     with mock.patch("app.services.deployment_service.MlflowClient"):

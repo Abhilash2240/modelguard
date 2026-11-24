@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.deps import get_alert_service
+from app.api.deps import get_alert_service, require_operator, require_viewer
 from app.core.errors import EntityNotFoundError, InvalidOperationError
+from app.db import models
 from app.schemas.monitoring import AlertAcknowledgeRequest, AlertResolveRequest, AlertResponse
 from app.services.alert_service import AlertService
 
@@ -13,9 +14,10 @@ def list_alerts(
     status: str | None = Query(None, description="Filter alerts by status (OPEN, ACKNOWLEDGED, RESOLVED)"),
     severity: str | None = Query(None, description="Filter alerts by severity (INFO, WARNING, CRITICAL)"),
     model_version: str | None = Query(None, description="Filter alerts by model version"),
+    current_user: models.User = Depends(require_viewer),
     alert_service: AlertService = Depends(get_alert_service),
 ) -> list[AlertResponse]:
-    """List persistent monitoring alerts with optional status and severity filters."""
+    """List persistent monitoring alerts with optional filters. Protected: Viewer+"""
     alerts = alert_service.list_alerts(status=status, severity=severity, model_version=model_version)
     return [AlertResponse.model_validate(a) for a in alerts]
 
@@ -23,9 +25,10 @@ def list_alerts(
 @router.get("/{alert_id}", response_model=AlertResponse)
 def get_alert(
     alert_id: str,
+    current_user: models.User = Depends(require_viewer),
     alert_service: AlertService = Depends(get_alert_service),
 ) -> AlertResponse:
-    """Retrieve details for a specific alert."""
+    """Retrieve details for a specific alert. Protected: Viewer+"""
     try:
         alert = alert_service.get_alert(alert_id)
         return AlertResponse.model_validate(alert)
@@ -37,11 +40,16 @@ def get_alert(
 def acknowledge_alert(
     alert_id: str,
     payload: AlertAcknowledgeRequest,
+    current_user: models.User = Depends(require_operator),
     alert_service: AlertService = Depends(get_alert_service),
 ) -> AlertResponse:
-    """Acknowledge an open alert."""
+    """Acknowledge an open alert.
+
+    Protected route: Requires operator or admin role.
+    Security: Derives actor from authenticated principal.
+    """
     try:
-        alert = alert_service.acknowledge_alert(alert_id=alert_id, actor=payload.actor)
+        alert = alert_service.acknowledge_alert(alert_id=alert_id, actor=current_user.username)
         return AlertResponse.model_validate(alert)
     except EntityNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
@@ -53,11 +61,16 @@ def acknowledge_alert(
 def resolve_alert(
     alert_id: str,
     payload: AlertResolveRequest,
+    current_user: models.User = Depends(require_operator),
     alert_service: AlertService = Depends(get_alert_service),
 ) -> AlertResponse:
-    """Resolve an alert with operational notes."""
+    """Resolve an alert with operational notes.
+
+    Protected route: Requires operator or admin role.
+    Security: Derives actor from authenticated principal.
+    """
     try:
-        alert = alert_service.resolve_alert(alert_id=alert_id, actor=payload.actor, notes=payload.notes)
+        alert = alert_service.resolve_alert(alert_id=alert_id, actor=current_user.username, notes=payload.notes)
         return AlertResponse.model_validate(alert)
     except EntityNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
