@@ -378,4 +378,5 @@ def test_docker_compose_localhost_port_bindings():
 
     assert len(port_lines) >= 5, f"Expected at least 5 port mappings in compose, found {len(port_lines)}"
     for pl in port_lines:
-        assert "127.0.0.1:" in pl, f"Port mapping '{pl}' does not bind strictly to 127.0.0.1"
+        mapping = pl.lstrip("- ").split("#")[0].strip().strip("\"'")
+        assert mapping.startswith("127.0.0.1:"), f"Port mapping '{pl}' does not bind strictly to 127.0.0.1 host"
