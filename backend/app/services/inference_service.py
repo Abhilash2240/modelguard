@@ -37,6 +37,14 @@ REQUIRED_FEATURE_NAMES = [
     "date_time",
 ]
 
+# Fixed reference bin edges for privacy-preserving numerical distribution telemetry
+FEATURE_HISTOGRAM_BINS: dict[str, list[float]] = {
+    "temp": [240.0, 255.0, 265.0, 275.0, 285.0, 295.0, 305.0, 315.0, 330.0],
+    "rain_1h": [0.0, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0],
+    "snow_1h": [0.0, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0],
+    "clouds_all": [0.0, 10.0, 25.0, 50.0, 75.0, 90.0, 100.0],
+}
+
 
 class InferenceService:
     """Service providing version-aware, contract-validated model serving and telemetry persistence."""
@@ -190,6 +198,16 @@ class InferenceService:
             if num_col in df_raw.columns:
                 s = pd.to_numeric(df_raw[num_col], errors="coerce").dropna()
                 if len(s) > 0:
+                    bins = FEATURE_HISTOGRAM_BINS.get(num_col, [])
+                    bin_counts = []
+                    underflow = 0
+                    overflow = 0
+                    if len(bins) >= 2:
+                        counts, _ = np.histogram(s.to_numpy(), bins=bins)
+                        bin_counts = [int(c) for c in counts]
+                        underflow = int((s < bins[0]).sum())
+                        overflow = int((s > bins[-1]).sum())
+
                     numeric_stats[num_col] = {
                         "count": int(len(s)),
                         "mean": float(s.mean()),
@@ -199,6 +217,10 @@ class InferenceService:
                         "q25": float(s.quantile(0.25)),
                         "q50": float(s.median()),
                         "q75": float(s.quantile(0.75)),
+                        "bin_edges": bins,
+                        "bin_counts": bin_counts,
+                        "underflow": underflow,
+                        "overflow": overflow,
                     }
 
         categorical_stats = {}
@@ -211,12 +233,16 @@ class InferenceService:
                     "frequencies": {str(k): int(v) for k, v in val_counts.items()},
                 }
 
+        ref_ds = getattr(candidate, "dataset_version", None)
         input_summary = {
             "row_count": len(request.inputs),
             "features_received": list(request.inputs[0].keys()),
             "null_counts": {k: int(v) for k, v in df_raw.isnull().sum().items()},
             "numeric_stats": numeric_stats,
             "categorical_stats": categorical_stats,
+            "reference_dataset_version_id": candidate.dataset_version_id,
+            "reference_dataset_tag": ref_ds.version_tag if ref_ds else "v1.0.0",
+            "reference_checksum": ref_ds.sha256_hash if ref_ds else "",
         }
 
         # Track inference metrics in Prometheus

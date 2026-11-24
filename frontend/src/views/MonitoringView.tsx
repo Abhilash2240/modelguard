@@ -26,18 +26,22 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ refreshTrigger }
   const [reports, setReports] = useState<DriftReport[]>([])
   const [quality, setQuality] = useState<QualityReport | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
   const [evaluating, setEvaluating] = useState<string | null>(null)
   const { addToast } = useToast()
 
   const loadSignals = async () => {
     try {
       setLoading(true)
+      setError(null)
       const [reps, qual] = await Promise.all([
-        api.getReports().catch(() => []),
+        api.getReports(),
         api.getQuality().catch(() => null),
       ])
       setReports(reps)
       setQuality(qual)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load monitoring signals.')
     } finally {
       setLoading(false)
     }
@@ -148,51 +152,122 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ refreshTrigger }
         </div>
       </div>
 
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1.2rem', borderRadius: 'var(--radius-md)', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#fca5a5' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <AlertTriangle size={18} className="text-red" />
+            <span style={{ fontSize: '0.88rem' }}>{error}</span>
+          </div>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={loadSignals}>
+            <RefreshCw size={12} />
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
+
       {/* KPI Cards Grid - Specifically Formatted to Prevent Overflow */}
       <div className="stat-grid">
         <StatCard
           title="Input Feature Drift"
-          value={latestInputReport ? (latestInputReport.is_drift_detected ? 'DRIFT DETECTED' : 'STABLE') : 'NOT EVALUATED'}
+          value={
+            latestInputReport
+              ? latestInputReport.detection_method === 'INSUFFICIENT_DATA' ||
+                latestInputReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA'
+                ? 'INSUFFICIENT DATA'
+                : latestInputReport.is_drift_detected
+                ? 'DRIFT DETECTED'
+                : 'STABLE'
+              : 'NOT EVALUATED'
+          }
           icon={Activity}
           badge={{
-            text: latestInputReport?.is_drift_detected ? 'ATTENTION' : 'NOMINAL',
-            type: latestInputReport?.is_drift_detected ? 'error' : 'success',
+            text: !latestInputReport
+              ? 'NOT EVALUATED'
+              : latestInputReport.detection_method === 'INSUFFICIENT_DATA' ||
+                latestInputReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA'
+              ? 'INSUFFICIENT'
+              : latestInputReport.is_drift_detected
+              ? 'ATTENTION'
+              : 'NOMINAL',
+            type: !latestInputReport
+              ? 'neutral'
+              : latestInputReport.detection_method === 'INSUFFICIENT_DATA' ||
+                latestInputReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA'
+              ? 'warning'
+              : latestInputReport.is_drift_detected
+              ? 'error'
+              : 'success',
           }}
-          footer={latestInputReport ? `Last evaluated ${new Date(latestInputReport.created_at).toLocaleTimeString()}` : 'Run analysis to compute'}
+          footer={
+            latestInputReport
+              ? `Last evaluated ${new Date(latestInputReport.created_at).toLocaleTimeString()}`
+              : 'Run analysis to compute'
+          }
         />
 
         <StatCard
           title="Prediction Output Drift"
-          value={latestPredictionReport ? (latestPredictionReport.is_drift_detected ? 'SHIFT DETECTED' : 'STABLE') : 'NOT EVALUATED'}
+          value={
+            latestPredictionReport
+              ? latestPredictionReport.detection_method === 'INSUFFICIENT_DATA' ||
+                latestPredictionReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA'
+                ? 'INSUFFICIENT DATA'
+                : latestPredictionReport.is_drift_detected
+                ? 'SHIFT DETECTED'
+                : 'STABLE'
+              : 'NOT EVALUATED'
+          }
           icon={Zap}
           badge={{
-            text: latestPredictionReport?.is_drift_detected ? 'ATTENTION' : 'NOMINAL',
-            type: latestPredictionReport?.is_drift_detected ? 'error' : 'success',
+            text: !latestPredictionReport
+              ? 'NOT EVALUATED'
+              : latestPredictionReport.detection_method === 'INSUFFICIENT_DATA' ||
+                latestPredictionReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA'
+              ? 'INSUFFICIENT'
+              : latestPredictionReport.is_drift_detected
+              ? 'ATTENTION'
+              : 'NOMINAL',
+            type: !latestPredictionReport
+              ? 'neutral'
+              : latestPredictionReport.detection_method === 'INSUFFICIENT_DATA' ||
+                latestPredictionReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA'
+              ? 'warning'
+              : latestPredictionReport.is_drift_detected
+              ? 'error'
+              : 'success',
           }}
-          footer={latestPredictionReport ? `p-val: ${latestPredictionReport.summary_json?.p_value?.toFixed(3) ?? '0.842'}` : 'Run analysis to compute'}
+          footer={
+            latestPredictionReport
+              ? latestPredictionReport.summary_json?.p_value != null
+                ? `p-val: ${latestPredictionReport.summary_json.p_value.toFixed(3)} (PSI: ${(latestPredictionReport.summary_json.psi ?? 0).toFixed(3)})`
+                : latestPredictionReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA'
+                ? 'Insufficient predictions (< 10)'
+                : `Evaluated ${new Date(latestPredictionReport.created_at).toLocaleTimeString()}`
+              : 'Run analysis to compute'
+          }
         />
 
         {/* Rolling Quality Card with Clean StatusBadge formatting to prevent text clipping */}
-        <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-title">Delayed-Label Model Quality</span>
-            <div className="stat-icon-wrap">
+        <div className="kpi-card">
+          <div className="kpi-header">
+            <span className="kpi-title">Delayed-Label Model Quality</span>
+            <div className="kpi-icon-wrap">
               <TrendingUp size={18} />
             </div>
           </div>
-          <div className="stat-content">
+          <div className="kpi-content">
             <div className="quality-status-badge-wrap">
               <StatusBadge status={quality?.status || 'INSUFFICIENT_LABELS'} />
             </div>
-            <div className="stat-metric-subtext">
+            <div className="stat-metric-subtext" style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
               {quality?.mae != null ? (
                 <span>Rolling MAE: <strong>{quality.mae.toFixed(1)}</strong></span>
               ) : (
-                <span>Requires &ge; 5 ground-truth feedback labels</span>
+                <span>Requires &ge; {quality?.details_json?.min_samples_required ?? 10} ground-truth feedback labels</span>
               )}
             </div>
           </div>
-          <div className="stat-footer">
+          <div className="kpi-footer">
             <span>{quality?.labeled_sample_count ?? 0} feedback samples recorded</span>
           </div>
         </div>
@@ -218,27 +293,44 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ refreshTrigger }
             </button>
           </div>
           <p className="section-description-text">
-            Performs two-sample Kolmogorov-Smirnov test against reference training dataset for all continuous features (temperature, rain, snow, clouds).
+            Performs statistical drift tests (KS-test, PSI, and TVD) comparing live production feature telemetry against the baseline training dataset.
           </p>
 
-          <div className="feature-drift-summary-list">
-            <div className="feature-row">
-              <span className="feature-name">temp (Temperature)</span>
-              <span className="badge badge-success">Stable (p = 0.742)</span>
+          {latestInputReport?.metrics_json?.features && latestInputReport.metrics_json.features.length > 0 ? (
+            <div className="feature-drift-summary-list">
+              {latestInputReport.metrics_json.features.map((feat) => {
+                const statLabel =
+                  feat.p_value != null
+                    ? `p = ${feat.p_value.toFixed(3)}`
+                    : feat.psi != null
+                    ? `PSI = ${feat.psi.toFixed(3)}`
+                    : feat.test_statistic != null
+                    ? `TVD = ${feat.test_statistic.toFixed(3)}`
+                    : ''
+                return (
+                  <div key={feat.feature_name} className="feature-row">
+                    <span className="feature-name">
+                      {feat.feature_name} ({feat.feature_type || 'numeric'})
+                    </span>
+                    <span className={`badge ${feat.is_drift_detected ? 'badge-error' : 'badge-success'}`}>
+                      {feat.is_drift_detected ? 'Drift Detected' : 'Stable'}
+                      {statLabel ? ` (${statLabel})` : ''}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
-            <div className="feature-row">
-              <span className="feature-name">rain_1h (Precipitation)</span>
-              <span className="badge badge-success">Stable (p = 0.910)</span>
+          ) : latestInputReport?.detection_method === 'INSUFFICIENT_DATA' || latestInputReport?.summary_json?.evidence_source === 'INSUFFICIENT_DATA' ? (
+            <div className="empty-notice-box" style={{ padding: '0.75rem', background: 'var(--bg-surface-2)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+              <AlertTriangle size={15} className="text-amber" />
+              <span>Insufficient live inference events (requires &ge; 5 events, 10 records) to compute feature drift.</span>
             </div>
-            <div className="feature-row">
-              <span className="feature-name">snow_1h (Snowfall)</span>
-              <span className="badge badge-success">Stable (p = 0.999)</span>
+          ) : (
+            <div className="empty-notice-box" style={{ padding: '0.75rem', background: 'var(--bg-surface-2)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              <Activity size={15} className="text-muted" />
+              <span>No input drift analysis run yet. Click "Run Input Drift Check" above to compute.</span>
             </div>
-            <div className="feature-row">
-              <span className="feature-name">clouds_all (Cloud Cover)</span>
-              <span className="badge badge-success">Stable (p = 0.655)</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Prediction Drift Check Box */}
@@ -265,7 +357,7 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ refreshTrigger }
           <div className="drift-metrics-summary-box">
             <div className="drift-meta-item">
               <span className="drift-label">Statistical Test:</span>
-              <strong>Kolmogorov-Smirnov (Two-Sample)</strong>
+              <strong>Kolmogorov-Smirnov &amp; PSI</strong>
             </div>
             <div className="drift-meta-item">
               <span className="drift-label">Significance Threshold (&alpha;):</span>
@@ -273,13 +365,24 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ refreshTrigger }
             </div>
             <div className="drift-meta-item">
               <span className="drift-label">Current KS p-value:</span>
-              <strong className="text-emerald">
-                {latestPredictionReport?.summary_json?.p_value?.toFixed(3) ?? '0.842'}
+              <strong className={latestPredictionReport?.summary_json?.p_value != null ? 'text-emerald' : 'text-muted'}>
+                {latestPredictionReport?.summary_json?.p_value != null
+                  ? latestPredictionReport.summary_json.p_value.toFixed(3)
+                  : '—'}
               </strong>
             </div>
             <div className="drift-meta-item">
               <span className="drift-label">Distribution Status:</span>
-              <span className="badge badge-success">Consistent with Baseline</span>
+              {!latestPredictionReport ? (
+                <span className="badge badge-neutral">Not Evaluated</span>
+              ) : latestPredictionReport.detection_method === 'INSUFFICIENT_DATA' ||
+                latestPredictionReport.summary_json?.evidence_source === 'INSUFFICIENT_DATA' ? (
+                <span className="badge badge-warning">Insufficient Predictions</span>
+              ) : latestPredictionReport.is_drift_detected ? (
+                <span className="badge badge-error">Shift Detected</span>
+              ) : (
+                <span className="badge badge-success">Consistent with Baseline</span>
+              )}
             </div>
           </div>
         </div>
@@ -320,7 +423,18 @@ export const MonitoringView: React.FC<MonitoringViewProps> = ({ refreshTrigger }
                     <span className="badge badge-neutral">{r.report_type}</span>
                   </td>
                   <td>
-                    {r.is_drift_detected ? (
+                    {r.detection_method === 'INSUFFICIENT_DATA' ||
+                    r.summary_json?.evidence_source === 'INSUFFICIENT_DATA' ? (
+                      <span className="badge badge-warning">
+                        <AlertTriangle size={11} />
+                        <span>Insufficient Data</span>
+                      </span>
+                    ) : r.summary_json?.evidence_source === 'SYNTHETIC_TEST' ? (
+                      <span className={`badge ${r.is_drift_detected ? 'badge-error' : 'badge-neutral'}`}>
+                        {r.is_drift_detected ? <AlertTriangle size={11} /> : <CheckCircle2 size={11} />}
+                        <span>Synthetic {r.is_drift_detected ? 'Drift' : 'Baseline'}</span>
+                      </span>
+                    ) : r.is_drift_detected ? (
                       <span className="badge badge-error">
                         <AlertTriangle size={11} />
                         <span>Drift Detected</span>

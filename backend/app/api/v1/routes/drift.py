@@ -38,6 +38,7 @@ def analyze_input_drift(
 
         # Handle explicit synthetic demonstration test
         if payload.scenario == "synthetic_anomaly":
+            ref_df = drift_service.load_reference_dataset()
             synthetic_df = ref_df.sample(n=min(len(ref_df), 100), random_state=42).copy()
             # Inject demonstrable synthetic sensor shift in temperature
             synthetic_df["temp"] = synthetic_df["temp"] + 35.0
@@ -55,14 +56,40 @@ def analyze_input_drift(
             )
             return DriftReportResponse.model_validate(report)
 
-        # Real production telemetry evaluation
-        current_events = (
-            db.query(models.PredictionEvent)
-            .filter(models.PredictionEvent.status == "SUCCESS")
-            .order_by(models.PredictionEvent.request_time.desc())
-            .limit(200)
-            .all()
+        # Resolve candidate
+        candidate = (
+            db.query(models.ModelCandidate)
+            .filter(models.ModelCandidate.mlflow_model_version == str(model_version))
+            .first()
         )
+        if not candidate:
+            prod_env = (
+                db.query(models.DeploymentEnvironment).filter(models.DeploymentEnvironment.name == "production").first()
+            )
+            if (
+                prod_env
+                and prod_env.active_candidate
+                and prod_env.active_candidate.mlflow_model_version == str(model_version)
+            ):
+                candidate = prod_env.active_candidate
+
+        ref_df, ref_version_record = drift_service.get_reference_dataset_record(
+            candidate.dataset_version_id if candidate else None
+        )
+
+        query = db.query(models.PredictionEvent).filter(
+            models.PredictionEvent.model_name == "metro-traffic-volume",
+            models.PredictionEvent.model_version == str(model_version),
+            models.PredictionEvent.status == "SUCCESS",
+        )
+        if candidate:
+            query = query.filter(models.PredictionEvent.candidate_id == candidate.id)
+        if payload.current_window_start:
+            query = query.filter(models.PredictionEvent.request_time >= payload.current_window_start)
+        if payload.current_window_end:
+            query = query.filter(models.PredictionEvent.request_time <= payload.current_window_end)
+
+        current_events = query.order_by(models.PredictionEvent.request_time.desc()).limit(200).all()
 
         total_obs = sum(
             ev.input_summary_json.get("row_count", 1)
@@ -99,12 +126,11 @@ def analyze_input_drift(
             db.commit()
             return DriftReportResponse.model_validate(insufficient_report)
 
-        # Construct current DataFrame from real production observation telemetry
-        curr_df = ref_df.sample(n=min(len(ref_df), total_obs), random_state=123).copy()
-
-        report = drift_service.analyze_input_drift(
-            current_df=curr_df,
+        # Analyze covariate drift directly from aggregated privacy-safe production telemetry
+        report = drift_service.analyze_input_drift_from_telemetry(
+            events=current_events,
             reference_df=ref_df,
+            reference_version_record=ref_version_record,
             model_name="metro-traffic-volume",
             model_version=model_version,
             reference_window=(payload.reference_window_start, payload.reference_window_end),
@@ -156,22 +182,44 @@ def analyze_prediction_drift(
         )
         return DriftReportResponse.model_validate(report)
 
-    # Real production predictions
-    events = (
-        db.query(models.PredictionEvent)
-        .filter(models.PredictionEvent.status == "SUCCESS")
-        .order_by(models.PredictionEvent.request_time.desc())
-        .limit(200)
-        .all()
+    # Resolve model candidate for exact versioned reference predictions
+    candidate = (
+        db.query(models.ModelCandidate).filter(models.ModelCandidate.mlflow_model_version == str(model_version)).first()
     )
+    if not candidate:
+        prod_env = (
+            db.query(models.DeploymentEnvironment).filter(models.DeploymentEnvironment.name == "production").first()
+        )
+        if (
+            prod_env
+            and prod_env.active_candidate
+            and prod_env.active_candidate.mlflow_model_version == str(model_version)
+        ):
+            candidate = prod_env.active_candidate
+
+    query = db.query(models.PredictionEvent).filter(
+        models.PredictionEvent.model_name == "metro-traffic-volume",
+        models.PredictionEvent.model_version == str(model_version),
+        models.PredictionEvent.status == "SUCCESS",
+    )
+    if candidate:
+        query = query.filter(models.PredictionEvent.candidate_id == candidate.id)
+    if payload.current_window_start:
+        query = query.filter(models.PredictionEvent.request_time >= payload.current_window_start)
+    if payload.current_window_end:
+        query = query.filter(models.PredictionEvent.request_time <= payload.current_window_end)
+
+    events = query.order_by(models.PredictionEvent.request_time.desc()).limit(200).all()
 
     curr_preds: list[float] = []
     for ev in events:
         if ev.prediction_json and isinstance(ev.prediction_json, dict) and "predictions" in ev.prediction_json:
             curr_preds.extend(ev.prediction_json["predictions"])
 
-    # Fail closed with INSUFFICIENT_DATA if fewer than 10 genuine predictions
-    if len(curr_preds) < 10:
+    ref_preds, ref_meta = drift_service.load_reference_predictions(candidate)
+
+    # Fail closed with INSUFFICIENT_DATA if fewer than 10 genuine predictions or reference baseline
+    if len(curr_preds) < 10 or len(ref_preds) < 10:
         insufficient_report = models.MonitoringReport(
             report_type="PREDICTION_DRIFT",
             model_name="metro-traffic-volume",
@@ -180,7 +228,7 @@ def analyze_prediction_drift(
             reference_window_end=payload.reference_window_end,
             current_window_start=payload.current_window_start,
             current_window_end=payload.current_window_end,
-            reference_sample_count=0,
+            reference_sample_count=len(ref_preds),
             current_sample_count=len(curr_preds),
             detection_method="INSUFFICIENT_DATA",
             policy_version=payload.policy_version,
@@ -188,25 +236,21 @@ def analyze_prediction_drift(
             summary_json={
                 "evidence_source": "INSUFFICIENT_DATA",
                 "prediction_count": len(curr_preds),
-                "reason": "Requires at least 10 live production predictions for two-sample KS and PSI testing.",
+                "reference_prediction_count": len(ref_preds),
+                "reason": "Requires at least 10 live production predictions and 10 reference predictions for two-sample KS and PSI testing.",
             },
             metrics_json=None,
-            limitations="Insufficient live production predictions. Hardcoded sample fallback has been removed for strict integrity.",
+            limitations="Insufficient live production predictions or reference baseline. Analysis suspended to avoid reporting false stability.",
             created_at=now,
         )
         db.add(insufficient_report)
         db.commit()
         return DriftReportResponse.model_validate(insufficient_report)
 
-    # Generate baseline reference predictions from historical reference distribution
-    ref_preds = curr_preds[: len(curr_preds) // 2]
-    eval_curr_preds = curr_preds[len(curr_preds) // 2 :]
-    if not ref_preds:
-        ref_preds = eval_curr_preds
-
     report = drift_service.analyze_prediction_drift(
-        current_predictions=eval_curr_preds,
+        current_predictions=curr_preds,
         reference_predictions=ref_preds,
+        reference_metadata=ref_meta,
         model_name="metro-traffic-volume",
         model_version=model_version,
         reference_window=(payload.reference_window_start, payload.reference_window_end),

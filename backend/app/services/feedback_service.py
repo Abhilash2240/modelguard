@@ -107,7 +107,30 @@ class FeedbackService:
             if prod_env and prod_env.active_candidate:
                 model_version = prod_env.active_candidate.mlflow_model_version
             else:
-                model_version = "1"
+                now = utc_now()
+                report = models.ModelQualityReport(
+                    id=models.generate_uuid(),
+                    model_name=model_name,
+                    model_version="NONE",
+                    window_start=None,
+                    window_end=now,
+                    sample_count=0,
+                    labeled_sample_count=0,
+                    label_coverage=0.0,
+                    mae=None,
+                    rmse=None,
+                    r2=None,
+                    status="NO_ACTIVE_CHAMPION",
+                    details_json={
+                        "message": "No active champion deployed to production environment. Quality evaluation suspended.",
+                        "min_samples_required": min_samples,
+                    },
+                    created_at=now,
+                )
+                self.db.add(report)
+                self.db.commit()
+                self.db.refresh(report)
+                return report
 
         # Query prediction events for this model version
         events_query = self.db.query(models.PredictionEvent).filter(

@@ -154,7 +154,7 @@ export interface QualityReport {
   mae?: number
   rmse?: number
   r2?: number
-  status: 'SUFFICIENT_LABELS' | 'INSUFFICIENT_LABELS'
+  status: 'SUFFICIENT_LABELS' | 'INSUFFICIENT_LABELS' | 'NO_ACTIVE_CHAMPION' | string
   details_json?: Record<string, any>
   created_at: string
 }
@@ -178,6 +178,24 @@ export interface DriftReport {
     psi?: number
     reference_mean?: number
     current_mean?: number
+    evidence_source?: string
+    reason?: string
+    [key: string]: any
+  }
+  metrics_json?: {
+    features?: Array<{
+      feature_name: string
+      feature_type?: string
+      detection_method?: string
+      test_statistic?: number
+      p_value?: number | null
+      psi?: number
+      threshold?: number
+      is_drift_detected: boolean
+      missing_rate_reference?: number
+      missing_rate_current?: number
+      unseen_categories?: string[]
+    }>
     [key: string]: any
   }
   limitations?: string

@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,6 +57,35 @@ class Settings(BaseSettings):
         elif isinstance(v, list):
             return [str(i) for i in v]
         return [str(v)]
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.ENVIRONMENT.lower() == "production":
+            insecure_markers = [
+                "change-in-production",
+                "insecure",
+                "development",
+                "placeholder",
+                "change_this",
+            ]
+            if len(self.SECRET_KEY) < 32 or any(m in self.SECRET_KEY.lower() for m in insecure_markers):
+                raise ValueError(
+                    "In production environment, SECRET_KEY must be a cryptographically secure key of at least 32 characters."
+                )
+            if self.BOOTSTRAP_ADMIN_PASSWORD:
+                weak_passwords = [
+                    "admin",
+                    "password",
+                    "modelguard",
+                    "admin123",
+                    "root",
+                    "change_this_to_a_secure_admin_password",
+                ]
+                if len(self.BOOTSTRAP_ADMIN_PASSWORD) < 8 or self.BOOTSTRAP_ADMIN_PASSWORD.lower() in weak_passwords:
+                    raise ValueError(
+                        "In production environment, BOOTSTRAP_ADMIN_PASSWORD must be at least 8 characters and not a default or placeholder password."
+                    )
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

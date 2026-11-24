@@ -17,9 +17,9 @@ services:
       - STORAGE_DIR=/app/storage
       - DATASETS_DIR=/app/storage/datasets
       - ALLOWED_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","http://localhost:80"]
-      - SECRET_KEY=${SECRET_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required in .env}
       - BOOTSTRAP_ADMIN_USERNAME=${BOOTSTRAP_ADMIN_USERNAME:-admin}
-      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:-}
+      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD is required in .env}
     volumes:
       - modelguard_data:/app/storage
       - shared_artifacts:/mlflow/artifacts

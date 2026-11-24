@@ -750,9 +750,22 @@ html, body {
   gap: 0.35rem;
   border-radius: 999px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
   white-space: nowrap;
   letter-spacing: 0.02em;
+  max-width: 100%;
+}
+
+.status-badge .status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quality-status-badge-wrap {
+  display: flex;
+  align-items: center;
+  margin-top: 0.25rem;
 }
 
 .status-badge.size-sm {
